@@ -60,7 +60,7 @@ public class TestCompQueries {
 //        generator.generateDataPerfectFD();
         generator.generateDataCorr();
 //        generator.generatePairwiseQueries(10);
-        generator.generatePredQueries(5);
+        generator.generatePredQueries(500);
 
         int[][] data = generator.getDataset();
 //        statsData(data);
@@ -75,7 +75,7 @@ public class TestCompQueries {
         printSampleQueries(queries, exactAnswer);
 
         int[] ds = new int[]{3,4,5,7};
-        int[] ws = new int[]{16};
+        int[] ws = new int[]{16,32,64};
         for (int d : ds) {
             for (int w : ws) {
 //                NaiveMin naiveMin = new NaiveMin(corr.length, d, w*w);

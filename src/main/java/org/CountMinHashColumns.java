@@ -74,4 +74,25 @@ public class CountMinHashColumns {
     public int memory() {
         return depth  * width * width * 4;
     }
+
+    public double queryCellL(int attr, int i1) {
+        computeHashes(xxB, i1, depth, width, reusableHashesB);
+        int minEstimate = Integer.MAX_VALUE;
+        for (int i = 0; i < depth; i++) {
+            if (CM[i][attr][reusableHashesB[i]] < minEstimate) {
+                minEstimate = CM[i][attr][reusableHashesB[i]];
+            }
+        }
+        return minEstimate;
+    }
+    public double queryCellR(int i1, int attr) {
+        computeHashes(xxA, i1, depth, width, reusableHashesA);
+        int minEstimate = Integer.MAX_VALUE;
+        for (int i = 0; i < depth; i++) {
+            if (CM[i][reusableHashesA[i]][attr] < minEstimate) {
+                minEstimate = CM[i][reusableHashesA[i]][attr];
+            }
+        }
+        return minEstimate;
+    }
 }

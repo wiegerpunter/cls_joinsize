@@ -1,6 +1,7 @@
 package org;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ChowLiu {
@@ -11,6 +12,20 @@ public class ChowLiu {
             this.u = u;
             this.v = v;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true; // same object
+            if (!(obj instanceof ChowLiu.Edge other)) return false;
+            if (this.u == other.u && this.v == other.v) return true;
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return u + v;
+        }
+
     }
     public static class EdgeWithWeight {
         int u, v;

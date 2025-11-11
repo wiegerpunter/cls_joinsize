@@ -104,9 +104,66 @@ public class ChowM2D extends AbstractNaiveMin {
 
         // Need ChowLiu tree.
         Set<Integer> sub = minimalSubtree(record);
-        List<String> f = buildFactorization(sub, root_cl, adjMatrix);
-        System.out.println("Factors: " + f);
-        return 1000000;
+        List<ChowLiu.Edge> f = buildFactorization(sub, root_cl, adjMatrix);
+
+        // query the pairwise CMs to get to estimate.
+
+        return queryFactors(f, record);
+    }
+
+    private int queryFactors(List<ChowLiu.Edge> f, int[] record) {
+        double sum = 0;
+        ArrayList<Integer> attrNotInPredicates = new ArrayList<>();
+        for (int i = 0; i < record.length; i++) {
+            if (record[i] == -1) {
+                attrNotInPredicates.add(i);
+            }
+        }
+        ArrayList<Integer> attrNotInPredicatesButInChowPath = new ArrayList<>();
+        for (int i = 0; i < attrNotInPredicates.size(); i++) {
+            for (ChowLiu.Edge edge : f) {
+                if (edge.u == attrNotInPredicates.get(i)) {
+                    if (!attrNotInPredicatesButInChowPath.contains(edge.u)) {
+                        attrNotInPredicatesButInChowPath.add(edge.u);
+                    }
+                }
+                if (edge.v == attrNotInPredicates.get(i)) {
+                    if (!attrNotInPredicatesButInChowPath.contains(edge.v)) {
+                        attrNotInPredicatesButInChowPath.add(edge.v);
+                    }
+                }
+            }
+        }
+
+        int sumW = 1;
+        // assume for now attrNotInPredicatesButInChowPath.size() == 1
+        if (attrNotInPredicatesButInChowPath.size() >1) {
+            throw new RuntimeException("Multiple attributes not in pred but in CL path.");
+        }
+        int attr = -1;
+        if (attrNotInPredicatesButInChowPath.size() == 1) {
+            attr= attrNotInPredicatesButInChowPath.get(0);
+            sumW = w;
+        }
+        for (int i = 0; i< sumW; i++) {
+            for (ChowLiu.Edge edge : f) {
+                if (edge.u == edge.v) {
+                    // single node:
+                    sum += (double) singleCMs[edge.u].query(record[edge.u]) / N;
+                } else if (edge.u == attr) {
+                    sum+= (double) doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellL(i,record[edge.v]) / N;
+                } else if (edge.v == attr) {
+                    sum+= (double) doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellR(record[edge.v], i) / N;
+                } else {
+                    int pos = invEdges.getOrDefault(new ChowLiu.Edge(edge.u, edge.v), -1);
+                    if (pos == -1) {
+                        throw new RuntimeException("Cannot find pos for edge " + edge.u + " " + edge.v);
+                    }
+                    sum+= (double) doubleCMs[pos].query(record[edge.u], record[edge.v]) / N;
+                }
+            }
+        }
+        return (int) (N * sum);
     }
 
     public int memoryUsage() {
@@ -179,13 +236,22 @@ public class ChowM2D extends AbstractNaiveMin {
         return subtree;
     }
 
-    static List<String> buildFactorization(Set<Integer> subtree, int root, List<List<Integer>> adj) {
-        List<String> factors = new ArrayList<>();
+    static List<ChowLiu.Edge> buildFactorization(Set<Integer> subtree, int root, List<List<Integer>> adj) {
+        List<ChowLiu.Edge> factors = new ArrayList<>();
         boolean[] visited = new boolean[adj.size()];
         Deque<Integer> stack = new ArrayDeque<>();
-        stack.push(root);
-        visited[root] = true;
-        factors.add("P(" + root + ")");
+        // if root not in query, try something else of subtree
+        if (subtree.contains(root)) {
+            stack.push(root);
+            visited[root] = true;
+            factors.add(new  ChowLiu.Edge(root, root));
+        } else {
+            int otherRoot =subtree.stream().findFirst().get();
+            stack.push(otherRoot);
+            visited[otherRoot] = true;
+            factors.add(new ChowLiu.Edge(root, root));
+        }
+
 
         while (!stack.isEmpty()) {
             int u = stack.pop();
@@ -193,7 +259,7 @@ public class ChowM2D extends AbstractNaiveMin {
                 if (subtree.contains(v) && !visited[v]) {
                     visited[v] = true;
                     stack.push(v);
-                    factors.add("P(" + v + " | " + u + ")");
+                    factors.add(new ChowLiu.Edge(Math.min(v,u), Math.max(v,u)));
                 }
             }
         }
