@@ -2,14 +2,15 @@ package org;
 
 import java.util.Random;
 
-public class ReservoirSample {
+public class ReservoirSample extends AbstractSynopsis{
     private int[][] reservoir;
     private int size;
     private int count;
     Random rn;
 
-    public ReservoirSample(int size, int numAttributes) {
-        this.size = size;
+    public ReservoirSample(int ram, int numAttributes) {
+        this.ram = ram;
+        this.size = ram / (4 * numAttributes);
         this.count = 0;
         rn = new Random(0);
         reservoir = new int[size][numAttributes];
@@ -45,9 +46,19 @@ public class ReservoirSample {
         return (int) (queryResultCount * (Math.max((double) count /size, 1)));
     }
 
-    public void memoryUsage() {
+    public int memoryUsage() {
         int ram = 0;
         ram = size * reservoir[0].length * 4;
-        System.out.println("Memory usage: " + ram + " bytes");
+        return ram;
+    }
+
+    @Override
+    public int getd() {
+        return 0;
+    }
+
+    @Override
+    public int getw() {
+        return 0;
     }
 }

@@ -1,15 +1,13 @@
 package org;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 
-
-public abstract class AbstractNaiveMin {
+public abstract class AbstractSynopsis {
+    public int ram;
     int numAttributes;
     public int N = 0;
     String setting;
 
-    public AbstractNaiveMin() {}
+    public AbstractSynopsis() {}
 
     public abstract void add(int[] record);
 

@@ -3,19 +3,21 @@ package org;
 import java.util.*;
 
 
-public class ChowM2D extends AbstractNaiveMin {
+public class ChowM2D extends AbstractSynopsis {
     CountMin[] singleCMs;
     CountMinHashColumns[] doubleCMs;
     ChowLiu.Edge[] edges;
     HashMap<ChowLiu.Edge, Integer> invEdges;
-    private int d;
-    private int w;
-    private int root_cl;
+    private final int d;
+    private final int w;
+    private final int root_cl;
     List<List<Integer>> adjMatrix;
-    public ChowM2D(int numAttributes, int d, int w, List<ChowLiu.Edge> chowLiu) {
+    public ChowM2D(int numAttributes, int ram, List<ChowLiu.Edge> chowLiu) {
         setting = "ChowM2D";
-        this.d = d;
-        this.w = w;
+        this.ram = ram;
+        int[] params = getParams(ram, numAttributes);
+        this.d = params[0];
+        this.w = params[1];
         this.numAttributes = numAttributes;
         singleCMs = new CountMin[numAttributes];
         for (int i = 0; i < singleCMs.length; i++) {
@@ -42,6 +44,17 @@ public class ChowM2D extends AbstractNaiveMin {
 
 
     }
+
+    private int[] getParams(int ram, int numAttributes) {
+        int d = 3;
+        // number of CMs needed: numAttributes + numAttributes - 1
+        int numCMs = numAttributes + numAttributes - 1;
+        int w = ram / (d * numCMs * 4);
+        System.out.println("Chow M2D has parameters d: " + d + " w: " +(int) Math.sqrt(w));
+
+        return new int[]{d,(int) Math.sqrt(w)};
+    }
+
     private int getRoot() {
         HashMap<Integer, Integer> candidateRoots = new HashMap<>();
         for (ChowLiu.Edge edge : edges) {
@@ -94,13 +107,13 @@ public class ChowM2D extends AbstractNaiveMin {
             return singleCMs[predicates.get(0)].query(record[predicates.get(0)]);
         }
 
-        if (predicates.size() == 2) {
-            if (predicates.get(0) > predicates.get(1)) {
-                throw new RuntimeException("Predicates not sorted");
-            }
-            int pos = invEdges.get(new ChowLiu.Edge(predicates.get(0), predicates.get(1)));
-            return doubleCMs[pos].query(record[predicates.get(0)], record[predicates.get(1)]);
-        }
+//        if (predicates.size() == 2) {
+//            if (predicates.get(0) > predicates.get(1)) {
+//                throw new RuntimeException("Predicates not sorted");
+//            }
+//            int pos = invEdges.get(new ChowLiu.Edge(predicates.get(0), predicates.get(1)));
+//            return doubleCMs[pos].query(record[predicates.get(0)], record[predicates.get(1)]);
+//        }
 
         // Need ChowLiu tree.
         Set<Integer> sub = minimalSubtree(record);
@@ -112,7 +125,6 @@ public class ChowM2D extends AbstractNaiveMin {
     }
 
     private int queryFactors(List<ChowLiu.Edge> f, int[] record) {
-        double sum = 0;
         ArrayList<Integer> attrNotInPredicates = new ArrayList<>();
         for (int i = 0; i < record.length; i++) {
             if (record[i] == -1) {
@@ -137,33 +149,95 @@ public class ChowM2D extends AbstractNaiveMin {
 
         int sumW = 1;
         // assume for now attrNotInPredicatesButInChowPath.size() == 1
-        if (attrNotInPredicatesButInChowPath.size() >1) {
+        if (attrNotInPredicatesButInChowPath.size() > 1) {
             throw new RuntimeException("Multiple attributes not in pred but in CL path.");
         }
         int attr = -1;
         if (attrNotInPredicatesButInChowPath.size() == 1) {
-            attr= attrNotInPredicatesButInChowPath.get(0);
+            attr = attrNotInPredicatesButInChowPath.get(0);
             sumW = w;
         }
-        for (int i = 0; i< sumW; i++) {
-            for (ChowLiu.Edge edge : f) {
-                if (edge.u == edge.v) {
-                    // single node:
-                    sum += (double) singleCMs[edge.u].query(record[edge.u]) / N;
-                } else if (edge.u == attr) {
-                    sum+= (double) doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellL(i,record[edge.v]) / N;
-                } else if (edge.v == attr) {
-                    sum+= (double) doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellR(record[edge.v], i) / N;
-                } else {
-                    int pos = invEdges.getOrDefault(new ChowLiu.Edge(edge.u, edge.v), -1);
-                    if (pos == -1) {
-                        throw new RuntimeException("Cannot find pos for edge " + edge.u + " " + edge.v);
+
+        int minEstimate = Integer.MAX_VALUE;
+        for (int j = 0; j < d; j++) {
+            double sum = 0;
+            for (int i = 0; i < sumW; i++) {
+                double product_p = 0;
+                for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
+                    ChowLiu.Edge edge = f.get(cl_idx);
+                    if (edge.u == edge.v) {
+                        // single node:
+                        if (edge.v == attr) {
+                            product_p = singleCMs[attr].queryCell(j, i) / N;
+                        } else {
+                            product_p = (double) singleCMs[edge.u].query(record[edge.u]) / N;
+                        }
+
+                    } else if (edge.u == attr) {
+                        double jointFreq = doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellL(j, i, record[edge.v]) / N;
+                        product_p = getSum(f, record, product_p, attr, j, i, cl_idx, edge, jointFreq);
+                    } else if (edge.v == attr) {
+                        double jointFreq = doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellR(j, record[edge.v], i) / N;
+                        product_p = getSum(f, record, product_p, attr, j, i, cl_idx, edge, jointFreq);
+                    } else {
+                        int pos = invEdges.getOrDefault(new ChowLiu.Edge(edge.u, edge.v), -1);
+                        if (pos == -1) {
+                            throw new RuntimeException("Cannot find pos for edge " + edge.u + " " + edge.v);
+                        }
+                        double jointFreq = (double) doubleCMs[pos].query(record[edge.u], record[edge.v]) / N;
+                        int condAttr = getCondAttr(edge.u, edge.v, f.get(cl_idx - 1));
+                        double denominator = (double) singleCMs[condAttr].query(record[condAttr]) / N;
+                        product_p *= jointFreq / denominator;
                     }
-                    sum+= (double) doubleCMs[pos].query(record[edge.u], record[edge.v]) / N;
+                }
+                if (product_p > 0) {
+                    sum += product_p;
                 }
             }
+            int estimate = (int) (N * sum);
+            if (estimate < minEstimate) {
+                minEstimate = estimate;
+            }
         }
-        return (int) (N * sum);
+        if (minEstimate == Integer.MAX_VALUE) {
+            System.out.println("inspect");
+        }
+        return minEstimate;
+    }
+
+    private double getSum(List<ChowLiu.Edge> f, int[] record, double sum, int attr, int j, int i, int cl_idx, ChowLiu.Edge edge, double jointFreq) {
+        int condAttr = getCondAttr(edge.u, edge.v, f.get(cl_idx - 1));
+        double denominator;
+        if (condAttr == attr) {
+            denominator = singleCMs[condAttr].queryCell(j, i) / N;
+        } else {
+            denominator = (double) singleCMs[condAttr].query(record[condAttr]) / N;
+        }
+        sum *= jointFreq / denominator;
+        return sum;
+    }
+
+    private int getCondAttr(int u, int v, ChowLiu.Edge edgeParent) {
+        // which of u and v is in edgeParent. It can only be one
+        int condAttr = -1;
+        ArrayList<Integer> edgeAttrs = new ArrayList<>();
+        edgeAttrs.add(edgeParent.u);
+        edgeAttrs.add(edgeParent.v);
+        for (Integer edgeAttr : edgeAttrs) {
+            if (edgeAttr == u) {
+                condAttr = u;
+                break;
+            }
+            if (edgeAttr == v) {
+                condAttr = v;
+                break;
+            }
+        }
+        if (condAttr == -1) {
+            throw new RuntimeException("Cannot find condAttr for edge " + edgeParent.u + " " + edgeParent.v);
+        }
+        return condAttr;
+
     }
 
     public int memoryUsage() {
@@ -249,7 +323,7 @@ public class ChowM2D extends AbstractNaiveMin {
             int otherRoot =subtree.stream().findFirst().get();
             stack.push(otherRoot);
             visited[otherRoot] = true;
-            factors.add(new ChowLiu.Edge(root, root));
+            factors.add(new ChowLiu.Edge(otherRoot, otherRoot));
         }
 
 

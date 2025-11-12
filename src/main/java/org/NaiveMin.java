@@ -1,13 +1,12 @@
 package org;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 record Edge(int a, int b) {
 
 }
 
-public class NaiveMin extends AbstractNaiveMin {
+public class NaiveMin extends AbstractSynopsis {
     CountMin[] singleCMs;
     CountMin[] doubleCMs;
     Edge[] edges;
@@ -15,10 +14,12 @@ public class NaiveMin extends AbstractNaiveMin {
     public int d;
     public int w;
 
-    public NaiveMin(int numAttributes, int d, int w) {
+    public NaiveMin(int numAttributes, int ram) {
         setting = "NaiveMin";
-        this.d = d;
-        this.w = w;
+        this.ram = ram;
+        int[] param = getPars(ram, numAttributes);
+        this.d = param[0];
+        this.w = param[1];
         this.numAttributes = numAttributes;
         singleCMs = new CountMin[numAttributes];
         for (int i = 0; i < singleCMs.length; i++) {
@@ -42,6 +43,16 @@ public class NaiveMin extends AbstractNaiveMin {
             invEdges.put(edges[i], i);
         }
 
+    }
+
+    private int[] getPars(int ram, int numAttributes) {
+        int d = 3;
+        // for every attr combination, make pairwise composite CM
+        int numPairwiseCMs = (numAttributes * numAttributes - numAttributes)/2;
+        // maxWidth = ram / (d * numPairwiseCMs * 4);
+        int w = ram / (d * numPairwiseCMs * 4);
+        System.out.println("Naive min has parameters d: " + d + " w: " + w);
+        return new int[]{d, w};
     }
 
     public int getd() {

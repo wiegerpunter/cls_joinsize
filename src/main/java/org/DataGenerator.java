@@ -158,6 +158,30 @@ public class DataGenerator {
                 }
             }
         }
+        queries = new int[numQueriesGenerated][];
+        for (int i = 0; i < numQueriesGenerated; i++) {
+            queries[i] = potQueries.get(i);
+        }
+
+        // exact answer:
+        exactAnswer = new int[queries.length];
+        for (int i = 0; i < queries.length; i++) {
+            int[] query = queries[i];
+            for (int[] record : dataset) {
+                boolean found = true;
+                for (int k = 0; k < query.length; k++) {
+                    if (query[k] != -1) {
+                        if (query[k] != record[k]) {
+                            found = false;
+                            break;
+                        }
+                    }
+                }
+                if (found) {
+                    exactAnswer[i] += 1;
+                }
+            }
+        }
     }
     public void generatePredQueries(int numQueries) {
 //        queries = new int[numQueries][numCols];

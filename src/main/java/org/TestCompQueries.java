@@ -6,7 +6,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -26,15 +25,15 @@ public class TestCompQueries {
     public static void main(String[] args) throws IOException {
 //        int[] cardinalities = {100, 5, 5, 5};
 
-        int[] cardinalities = {100, 100, 100, 100};
+        int[] cardinalities = {100, 100, 100, 100, 100, 100};
 //        int[] cardinalities = {10,10,10,10};
 
-        double[][] corr = {
-                {1.0, 0.9, 0.4, 0.2},
-                {0.9, 1.0, 0.7, 0.1},
-                {0.4, 0.7, 1.0, 0.6},
-                {0.2, 0.1, 0.6, 1.0}
-        };
+//        double[][] corr = {
+//                {1.0, 0.9, 0.4, 0.2},
+//                {0.9, 1.0, 0.7, 0.1},
+//                {0.4, 0.7, 1.0, 0.6},
+//                {0.2, 0.1, 0.6, 1.0}
+//        };
 //        double[][] corr = {
 //                {1.0, 1.0, 1.0, 1.0},
 //                {1.0, 1.0, 1.0, 1.0},
@@ -59,8 +58,8 @@ public class TestCompQueries {
 //        generator.generateDatasetUniform();
 //        generator.generateDataPerfectFD();
         generator.generateDataCorr();
-//        generator.generatePairwiseQueries(10);
-        generator.generatePredQueries(500);
+        generator.generatePairwiseQueries(500);
+//        generator.generatePredQueries(500);
 
         int[][] data = generator.getDataset();
 //        statsData(data);
@@ -74,21 +73,19 @@ public class TestCompQueries {
 
         printSampleQueries(queries, exactAnswer);
 
-        int[] ds = new int[]{3,4,5,7};
-        int[] ws = new int[]{16,32,64};
-        for (int d : ds) {
-            for (int w : ws) {
-//                NaiveMin naiveMin = new NaiveMin(corr.length, d, w*w);
-//                runNaiveMin(naiveMin, data, queries, exactAnswer);
-//
-//                CM2D naiveMin2D = new CM2D(corr.length, d, w);
-//                runNaiveMin(naiveMin2D, data, queries, exactAnswer);
-                ChowM2D ChowLiuMin2D = new ChowM2D(corr.length, d, w, chowLiu);
+        int[] ds = new int[]{3};
+        int[] ws = new int[]{32};
+        int[] rams = new int[]{10000,50000,100000,500000};
+        for (int ram : rams) {
+                NaiveMin naiveMin = new NaiveMin(cardinalities.length,ram);
+                runNaiveMin(naiveMin, data, queries, exactAnswer);
+
+                CM2D naiveMin2D = new CM2D(cardinalities.length, ram);
+                runNaiveMin(naiveMin2D, data, queries, exactAnswer);
+
+                ChowM2D ChowLiuMin2D = new ChowM2D(cardinalities.length, ram, chowLiu);
                 runNaiveMin(ChowLiuMin2D, data, queries, exactAnswer);
-            }
         }
-
-
 
     }
     public static class Record {
@@ -273,7 +270,7 @@ public class TestCompQueries {
         }
     }
 
-    private static void runNaiveMin(AbstractNaiveMin nm, int[][] data, int[][] queries, int[] exactAnswer) throws IOException {
+    private static void runNaiveMin(AbstractSynopsis nm, int[][] data, int[][] queries, int[] exactAnswer) throws IOException {
 
         long start = System.currentTimeMillis();
         for (int[] datum : data) {
@@ -294,35 +291,36 @@ public class TestCompQueries {
             end = System.currentTimeMillis();
             queryTime[i] = (int) (end - start);
             errorNaiveMin[i] = estimateNaiveMin[i] - exactAnswer[i];
-            if (errorNaiveMin[i] < 0) {
-                throw new RuntimeException("Error in Naive Min 2D hash");
-            }
+//            if (errorNaiveMin[i] < 0) {
+//                throw new RuntimeException("Error in Naive Min 2D hash");
+//            }
+//            System.out.println("Query " + i + ": estimate: " + estimateNaiveMin[i] + " exact: " + exactAnswer[i] + " error: " + errorNaiveMin[i]);
         }
         long end_totalQtime = System.currentTimeMillis();
         int totQtime = (int) (end_totalQtime - totalQtime);
-        System.out.println("Naive Min query time: " + (totQtime) + " ms");
+//        System.out.println("Naive Min query time: " + (totQtime) + " ms");
         int sum_marg_qtime = 0;
         for (int i = 0; i < queries.length; i++) {
             sum_marg_qtime += queryTime[i];
         }
-        System.out.println("Naive Min query time sum: " + (sum_marg_qtime) + " ms");
+//        System.out.println("Naive Min query time sum: " + (sum_marg_qtime) + " ms");
 
         stats(exactAnswer, estimateNaiveMin, errorNaiveMin);
         int memUsage = nm.memoryUsage();
-        writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,ingestTime, queryTime, nm.getd(), nm.getw());
+        writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
     }
 
-    private static void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage, int ingestTime, int[] queryTime, int d, int w) throws IOException {
+    private static void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage, int ingestTime, int[] queryTime, int d, int w, int ram) throws IOException {
         boolean init = !new File(CSV_FILE_NAME).exists();
         //String currentDate = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w"};
+            String[] header = new String[]{"queryID","setting","memUsage", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[12];
+            String[] result = new String[13];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
@@ -335,6 +333,7 @@ public class TestCompQueries {
             result[9] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i])/exactAnswers[i]);
             result[10] = String.valueOf(d);
             result[11] = String.valueOf(w);
+            result[12] = String.valueOf(ram);
 
             writer.writeNext(result);
         }
@@ -343,8 +342,7 @@ public class TestCompQueries {
     }
 
     private static void runRS(double[][] corr, int[][] data, int[][] queries, int[] exactAnswer, int ram) {
-        int size = ram / (4 * corr.length);
-        ReservoirSample rs = new ReservoirSample(size, corr.length);
+        ReservoirSample rs = new ReservoirSample(ram, corr.length);
         for (int[] datum : data) {
             rs.add(datum);
         }

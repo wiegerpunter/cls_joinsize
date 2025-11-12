@@ -8,7 +8,7 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
 public class CountMin {
-    public int[][] CM;
+    private final int[][] CM;
     private final int depth;
     private final int width;
     HashFunction[] xx;
@@ -67,6 +67,10 @@ public class CountMin {
         return minEstimate;
     }
 
+    public double queryCell(int row, int column) {
+        return CM[row][column];
+    }
+
 
     public static void computeHashes(HashFunction[] hashFunctions, int attrValue, int depth, int width, int[] hashes) {
         for (int i = 0; i < depth; i++) {
@@ -89,4 +93,5 @@ public class CountMin {
     public int memory() {
         return depth  * width * 4;
     }
+
 }

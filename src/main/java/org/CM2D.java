@@ -4,17 +4,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 
-public class CM2D extends AbstractNaiveMin {
+public class CM2D extends AbstractSynopsis {
     CountMin[] singleCMs;
     CountMinHashColumns[] doubleCMs;
     Edge[] edges;
     HashMap<Edge, Integer> invEdges;
-    private int d;
-    private int w;
-    public CM2D(int numAttributes, int d, int w) {
+    private final int d;
+    private final int w;
+
+    public CM2D(int numAttributes, int ram) {
         setting = "CM2D";
-        this.d = d;
-        this.w = w;
+        this.ram = ram;
+        int[] params = getParams(ram, numAttributes);
+        this.d = params[0];
+        this.w = params[1];
         this.numAttributes = numAttributes;
         singleCMs = new CountMin[numAttributes];
         for (int i = 0; i < singleCMs.length; i++) {
@@ -37,6 +40,18 @@ public class CM2D extends AbstractNaiveMin {
         for (int i = 0; i < edges.length; i++) {
             invEdges.put(edges[i], i);
         }
+
+    }
+
+    private int[] getParams(int ram, int numAttributes) {
+        int d = 3;
+        // for every attr combination, make pairwise composite CM
+        int numPairwiseCMs = (numAttributes * numAttributes - numAttributes)/2;
+        // maxWidth = ram / (d * numPairwiseCMs * 4);
+        int w_sq = ram / (d * numPairwiseCMs * 4);
+
+        System.out.println("CM2D has parameters d: " + d + " w: " + (int) Math.sqrt(w_sq));
+        return new int[]{d, (int) Math.sqrt(w_sq)};
 
     }
 
