@@ -9,6 +9,7 @@ public class ReservoirSample extends AbstractSynopsis{
     Random rn;
 
     public ReservoirSample(int ram, int numAttributes) {
+        setting = "Reservoir Sample";
         this.ram = ram;
         this.size = ram / (4 * numAttributes);
         this.count = 0;
