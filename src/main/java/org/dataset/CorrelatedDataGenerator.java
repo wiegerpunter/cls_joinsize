@@ -1,10 +1,11 @@
-package org;
+package org.dataset;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 
+@Deprecated
 public class CorrelatedDataGenerator {
     private final int numRows;
     private final int numCols;

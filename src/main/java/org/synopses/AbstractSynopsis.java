@@ -1,11 +1,11 @@
-package org;
+package org.synopses;
 
 
 public abstract class AbstractSynopsis {
     public int ram;
     int numAttributes;
     public int N = 0;
-    String setting;
+    public String setting;
 
     public AbstractSynopsis() {}
 

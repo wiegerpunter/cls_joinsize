@@ -1,9 +1,10 @@
-package org;
+package org.dataset;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Random;
+import org.utils.Config;
+import org.utils.Record;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class DataGenerator {
     private final int numRows;
@@ -140,20 +141,6 @@ public class DataGenerator {
                 if (!alreadySeen) {
                     // mask attributes
                     potQueries.add(query);
-//                    potQueries.add(Arrays.copyOf(dataset[i], dataset[i].length));
-//                    for (int j = 0; j < dataset[i].length; j++) {
-//                        // check if j in twoAttributes, if not, mask with -1
-//                        boolean mask = true;
-//                        for (int twoAttribute : twoAttributes) {
-//                            if (twoAttribute == j) {
-//                                mask = false;
-//                                break;
-//                            }
-//                        }
-//                        if (mask) {
-//                            potQueries.get(numQueriesGenerated)[j] = -1;
-//                        }
-//                    }
                     numQueriesGenerated++;
                 }
             }
@@ -262,7 +249,109 @@ public class DataGenerator {
     public int[][] getQueries() {
         return queries;
     }
-    public int[][] getPairwiseQueries() {
-        return queries;
+
+    public void run(Config config) {
+        switch (config.dataDistribution) {
+            case "Uniform" -> this.generateDatasetUniform();
+            case "PerfectFD" -> this.generateDataPerfectFD();
+            case "Corr" -> this.generateDataCorr();
+            default -> throw new RuntimeException("Data distribution not recognized");
+        }
+
+        // Generate queries
+        this.generatePairwiseQueries(config.numQueries);
+//        this.generatePredQueries(500);
+
+        if (config.statsData) {
+            statsData(dataset);
+        }
+        if (config.printData) {
+            printSampleData(dataset);
+        }
+
     }
+
+
+    private static void statsData(int[][] data) {
+        // cardinality per attribute
+        // frequency for top-10 values
+
+        HashMap<org.utils.Record, Integer> uniqueRecords = new HashMap<>();
+        HashMap<Integer, Integer>[] uniqueRecsPerAttr= new HashMap[data[0].length];
+        for (int i = 0; i < data[0].length; i++) {
+            uniqueRecsPerAttr[i] = new HashMap<>();
+        }
+        for (int[] datum : data) {
+            org.utils.Record r = new org.utils.Record(datum);
+            uniqueRecords.put(r, uniqueRecords.getOrDefault(r, 0) + 1);
+            for (int attr = 0; attr < datum.length; attr++) {
+                uniqueRecsPerAttr[attr].put(datum[attr], uniqueRecords.getOrDefault(r, 0) + 1);
+            }
+        }
+
+        int K = 10;
+        // freq topk vals
+        List<Map.Entry<org.utils.Record, Integer>> topKByValue = topKByValue(uniqueRecords, K);
+
+        for (Map.Entry<Record, Integer> entry : topKByValue) {
+            System.out.println(Arrays.toString(entry.getKey().getRec()) + " : " + entry.getValue());
+
+        }
+
+        for (int a = 0; a < data[0].length; a++) {
+            List<Map.Entry<Integer, Integer>> topKByAttr = topKByValueInt(uniqueRecsPerAttr[a], K);
+            System.out.println(" TOP " + K + " by attr " + a + " is: ");
+            for (Map.Entry<Integer, Integer> entry : topKByAttr) {
+                System.out.println(entry.getKey() + " : " + entry.getValue());
+            }
+        }
+    }
+
+
+    public static List<Map.Entry<Record, Integer>> topKByValue(Map<Record, Integer> map, int k) {
+        return map.entrySet()
+                .stream()
+                .sorted((a, b) -> b.getValue().compareTo(a.getValue())) // descending by value
+                .limit(k)
+                .collect(Collectors.toList());
+    }
+    public static List<Map.Entry<Integer, Integer>> topKByValueInt(Map<Integer, Integer> map, int k) {
+        return map.entrySet()
+                .stream()
+                .sorted((a, b) -> b.getValue().compareTo(a.getValue())) // descending by value
+                .limit(k)
+                .collect(Collectors.toList());
+    }
+
+    public static List<Map.Entry<Record, Integer>> topKByAttribute(Map<Record, Integer> map, int attrIndex, int k) {
+        return map.entrySet()
+                .stream()
+                .sorted((a, b) -> Integer.compare(b.getKey().getRec()[attrIndex], a.getKey().getRec()[attrIndex])) // descending by rec[i]
+                .limit(k)
+                .collect(Collectors.toList());
+    }
+
+
+    private static void printSampleData(int[][] data) {
+
+
+        System.out.println("Sample data:");
+        for (int i = 0; i <Math.min(data.length, 10); i++) { //Math.min(data.length, 10)
+            for (int j = 0; j < data[i].length; j++) {
+                System.out.print(data[i][j] + " ");
+            }
+            System.out.println();
+        }
+    }
+
+    private static void printSampleQueries(int[][] queries, int[] exactAnswer) {
+        for (int i = 0; i < Math.min(queries.length, 10); i++) {
+            for (int j = 0; j < queries[i].length; j++) {
+                System.out.print(queries[i][j] + " ");
+            }
+            System.out.print(" exact: " + exactAnswer[i] + " ");
+            System.out.println();
+        }
+    }
+
 }

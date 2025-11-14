@@ -1,33 +1,33 @@
-package org;
+package org.synopses;
+
+import org.utils.Edge;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-record Edge(int a, int b) {
 
-}
 
-public class NaiveMin extends AbstractSynopsis {
+public class CM2D extends AbstractSynopsis {
     CountMin[] singleCMs;
-    CountMin[] doubleCMs;
+    CountMinHashColumns[] doubleCMs;
     Edge[] edges;
     HashMap<Edge, Integer> invEdges;
-    public int d;
-    public int w;
+    private final int d;
+    private final int w;
 
-    public NaiveMin(int numAttributes, int ram) {
-        setting = "NaiveMin";
+    public CM2D(int numAttributes, int ram) {
+        setting = "CM2D";
         this.ram = ram;
-        int[] param = getPars(ram, numAttributes);
-        this.d = param[0];
-        this.w = param[1];
+        int[] params = getParams(ram, numAttributes);
+        this.d = params[0];
+        this.w = params[1];
         this.numAttributes = numAttributes;
         singleCMs = new CountMin[numAttributes];
         for (int i = 0; i < singleCMs.length; i++) {
-            singleCMs[i] = new CountMin(d, (int) Math.sqrt(w));
+            singleCMs[i] = new CountMin(d, w);
         }
-        doubleCMs = new CountMin[(numAttributes*numAttributes - numAttributes)/2];
+        doubleCMs = new CountMinHashColumns[(numAttributes*numAttributes - numAttributes)/2];
         for (int i = 0; i < doubleCMs.length; i++) {
-            doubleCMs[i] = new CountMin(d, w);
+            doubleCMs[i] = new CountMinHashColumns(d, w);
         }
         edges = new Edge[(numAttributes*numAttributes - numAttributes)/2];
         int count=0;
@@ -45,14 +45,16 @@ public class NaiveMin extends AbstractSynopsis {
 
     }
 
-    private int[] getPars(int ram, int numAttributes) {
+    private int[] getParams(int ram, int numAttributes) {
         int d = 3;
         // for every attr combination, make pairwise composite CM
         int numPairwiseCMs = (numAttributes * numAttributes - numAttributes)/2;
         // maxWidth = ram / (d * numPairwiseCMs * 4);
-        int w = ram / (d * numPairwiseCMs * 4);
-        System.out.println("Naive min has parameters d: " + d + " w: " + w);
-        return new int[]{d, w};
+        int w_sq = ram / (d * numPairwiseCMs * 4);
+
+        System.out.println("CM2D has parameters d: " + d + " w: " + (int) Math.sqrt(w_sq));
+        return new int[]{d, (int) Math.sqrt(w_sq)};
+
     }
 
     public int getd() {
@@ -62,18 +64,16 @@ public class NaiveMin extends AbstractSynopsis {
         return w;
     }
 
-    @Override
     public void add(int[] record) {
         N += 1;
         for (int i = 0; i < numAttributes; i++) {
             singleCMs[i].add(record[i]);
         }
         for (int i = 0; i < edges.length; i++) {
-            doubleCMs[i].add(record[edges[i].a()], record[edges[i].b()]);
+            doubleCMs[i].add(record[edges[i].getU()], record[edges[i].getV()]);
         }
     }
 
-    @Override
     public int query(int[] record) {
         ArrayList<Integer> predicates = new ArrayList<>();
         for (int i = 0; i < record.length; i++) {
@@ -100,7 +100,6 @@ public class NaiveMin extends AbstractSynopsis {
         throw new RuntimeException("Not supported yet for naive CM");
     }
 
-    @Override
     public int memoryUsage() {
         int ram = 0;
         for (CountMin singleCM : singleCMs) {
@@ -109,7 +108,7 @@ public class NaiveMin extends AbstractSynopsis {
         for (int i = 0; i < edges.length; i++) {
             ram += doubleCMs[i].memory();
         }
-       return ram;
+        return ram;
     }
 
 }

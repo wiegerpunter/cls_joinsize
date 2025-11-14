@@ -1,4 +1,4 @@
-package org;
+package org.synopses;
 
 import java.util.Random;
 

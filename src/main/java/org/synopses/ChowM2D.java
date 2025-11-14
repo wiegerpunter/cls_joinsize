@@ -1,4 +1,7 @@
-package org;
+package org.synopses;
+
+import org.ChowLiu;
+import org.utils.Edge;
 
 import java.util.*;
 
@@ -6,13 +9,12 @@ import java.util.*;
 public class ChowM2D extends AbstractSynopsis {
     CountMin[] singleCMs;
     CountMinHashColumns[] doubleCMs;
-    ChowLiu.Edge[] edges;
-    HashMap<ChowLiu.Edge, Integer> invEdges;
+    Edge[] edges;
+    HashMap<Edge, Integer> invEdges;
     private final int d;
     private final int w;
-    private final int root_cl;
     List<List<Integer>> adjMatrix;
-    public ChowM2D(int numAttributes, int ram, List<ChowLiu.Edge> chowLiu) {
+    public ChowM2D(int numAttributes, int ram, List<Edge> chowLiu) {
         setting = "ChowM2D";
         this.ram = ram;
         int[] params = getParams(ram, numAttributes);
@@ -27,7 +29,7 @@ public class ChowM2D extends AbstractSynopsis {
         for (int i = 0; i < doubleCMs.length; i++) {
             doubleCMs[i] = new CountMinHashColumns(d, w);
         }
-        edges = new ChowLiu.Edge[chowLiu.size()];
+        edges = new Edge[chowLiu.size()];
         for (int i = 0; i < edges.length; i++) {
             edges[i] = chowLiu.get(i);
         }
@@ -59,11 +61,6 @@ public class ChowM2D extends AbstractSynopsis {
                 return i;
             }
         }
-        if (root == -1) {
-            throw new RuntimeException("Cannot find root for chow liu");
-        }
-        return root;
-
 
         for (Integer i: subtree) {
             boolean leafInSubtree = true;
@@ -92,7 +89,7 @@ public class ChowM2D extends AbstractSynopsis {
             singleCMs[i].add(record[i]);
         }
         for (int i = 0; i < edges.length; i++) {
-            doubleCMs[i].add(record[edges[i].u], record[edges[i].v]);
+            doubleCMs[i].add(record[edges[i].getU()], record[edges[i].getV()]);
         }
     }
 
@@ -115,41 +112,33 @@ public class ChowM2D extends AbstractSynopsis {
             return singleCMs[active.get(0)].query(record[active.get(0)]);
         }
 
-//        if (predicates.size() == 2) {
-//            if (predicates.get(0) > predicates.get(1)) {
-//                throw new RuntimeException("Predicates not sorted");
-//            }
-//            int pos = invEdges.get(new ChowLiu.Edge(predicates.get(0), predicates.get(1)));
-//            return doubleCMs[pos].query(record[predicates.get(0)], record[predicates.get(1)]);
-//        }
-
         // Need ChowLiu tree.
         Set<Integer> sub = minimalSubtree(active);
 
         int root_cl = getRoot(sub);
-        List<ChowLiu.Edge> f = buildFactorization(sub, root_cl, adjMatrix);
+        List<Edge> f = buildFactorization(sub, root_cl, adjMatrix);
 
         // query the pairwise CMs to get to estimate.
 
         return queryFactors(f, record, notActive);
     }
 
-    private Set<Integer> getAttrNotInPredicatesButInChowPath(List<ChowLiu.Edge> f, ArrayList<Integer> notActive) {
+    private Set<Integer> getAttrNotInPredicatesButInChowPath(List<Edge> f, ArrayList<Integer> notActive) {
         Set<Integer> attrNotInPredicatesButInChowPath = new HashSet<>();
         for (Integer attrNotActive : notActive) {
-            for (ChowLiu.Edge edge : f) {
-                if (edge.u == attrNotActive) {
-                    attrNotInPredicatesButInChowPath.add(edge.u);
+            for (Edge edge : f) {
+                if (edge.getU() == attrNotActive) {
+                    attrNotInPredicatesButInChowPath.add(edge.getU());
                 }
-                if (edge.v == attrNotActive) {
-                    attrNotInPredicatesButInChowPath.add(edge.v);
+                if (edge.getV() == attrNotActive) {
+                    attrNotInPredicatesButInChowPath.add(edge.getV());
                 }
             }
         }
         return attrNotInPredicatesButInChowPath;
     }
 
-    private int queryFactors(List<ChowLiu.Edge> f, int[] record, ArrayList<Integer> notActive) {
+    private int queryFactors(List<Edge> f, int[] record, ArrayList<Integer> notActive) {
         Set<Integer> attrNotInPredicatesButInChowPath = getAttrNotInPredicatesButInChowPath(f, notActive);
 
         int sumW = 1;
@@ -169,28 +158,28 @@ public class ChowM2D extends AbstractSynopsis {
             for (int i = 0; i < sumW; i++) {
                 double product_p = 0;
                 for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
-                    ChowLiu.Edge edge = f.get(cl_idx);
-                    if (edge.u == edge.v) {
+                    Edge edge = f.get(cl_idx);
+                    if (edge.getU() == edge.getV()) {
                         // single node:
-                        if (edge.v == attr) {
+                        if (edge.getV() == attr) {
                             product_p = singleCMs[attr].queryCell(j, i) / N;
                         } else {
-                            product_p = (double) singleCMs[edge.u].query(record[edge.u]) / N;
+                            product_p = (double) singleCMs[edge.getU()].query(record[edge.getU()]) / N;
                         }
 
-                    } else if (edge.u == attr) {
-                        double jointFreq = doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellL(j, i, record[edge.v]) / N;
+                    } else if (edge.getU() == attr) {
+                        double jointFreq = doubleCMs[invEdges.get(new Edge(edge.getU(), edge.getV()))].queryCellL(j, i, record[edge.getV()]) / N;
                         product_p = getSum(f, record, product_p, attr, j, i, cl_idx, edge, jointFreq);
-                    } else if (edge.v == attr) {
-                        double jointFreq = doubleCMs[invEdges.get(new ChowLiu.Edge(edge.u, edge.v))].queryCellR(j, record[edge.v], i) / N;
+                    } else if (edge.getV() == attr) {
+                        double jointFreq = doubleCMs[invEdges.get(new Edge(edge.getU(), edge.getV()))].queryCellR(j, record[edge.getV()], i) / N;
                         product_p = getSum(f, record, product_p, attr, j, i, cl_idx, edge, jointFreq);
                     } else {
-                        int pos = invEdges.getOrDefault(new ChowLiu.Edge(edge.u, edge.v), -1);
+                        int pos = invEdges.getOrDefault(new Edge(edge.getU(), edge.getV()), -1);
                         if (pos == -1) {
-                            throw new RuntimeException("Cannot find pos for edge " + edge.u + " " + edge.v);
+                            throw new RuntimeException("Cannot find pos for edge " + edge.getU() + " " + edge.getV());
                         }
-                        double jointFreq = (double) doubleCMs[pos].query(record[edge.u], record[edge.v]) / N;
-                        int condAttr = getCondAttr(edge.u, edge.v, f.get(cl_idx - 1));
+                        double jointFreq = (double) doubleCMs[pos].query(record[edge.getU()], record[edge.getV()]) / N;
+                        int condAttr = getCondAttr(edge.getU(), edge.getV(), f.get(cl_idx - 1));
                         double denominator = (double) singleCMs[condAttr].query(record[condAttr]) / N;
                         product_p *= jointFreq / denominator;
                     }
@@ -210,8 +199,37 @@ public class ChowM2D extends AbstractSynopsis {
         return minEstimate;
     }
 
-    private double getSum(List<ChowLiu.Edge> f, int[] record, double sum, int attr, int j, int i, int cl_idx, ChowLiu.Edge edge, double jointFreq) {
-        int condAttr = getCondAttr(edge.u, edge.v, f.get(cl_idx - 1));
+    private double recursiveSumOverPath(
+            int level,
+            int[] record,
+            List<Integer> midAttrs,
+            List<Edge> f,
+            Map<Edge, Integer> invEdges,
+            double N) {
+
+        if (level == midAttrs.size()) {
+            // Base case: compute product_p from the current fixed assignment of all midAttrs
+            return computeProductP(record, f, invEdges, singleCMs, doubleCMs, N);
+        }
+
+        int attr = midAttrs.get(level);
+        double sum = 0;
+
+        for (int j = 0; j < w; j++) {
+            record[attr] = j;
+            sum += recursiveSumOverPath(level + 1, record, midAttrs, f, invEdges, N);
+        }
+
+        return sum;
+    }
+
+    private double computeProductP(int[] record, List<Edge> f, Map<Edge, Integer> invEdges, CountMin[] singleCMs, CountMinHashColumns[] doubleCMs, double n) {
+        return 0; //todo
+    }
+
+
+    private double getSum(List<Edge> f, int[] record, double sum, int attr, int j, int i, int cl_idx, Edge edge, double jointFreq) {
+        int condAttr = getCondAttr(edge.getU(), edge.getV(), f.get(cl_idx - 1));
         double denominator;
         if (condAttr == attr) {
             denominator = singleCMs[condAttr].queryCell(j, i) / N;
@@ -222,12 +240,12 @@ public class ChowM2D extends AbstractSynopsis {
         return sum;
     }
 
-    private int getCondAttr(int u, int v, ChowLiu.Edge edgeParent) {
+    private int getCondAttr(int u, int v, Edge edgeParent) {
         // which of u and v is in edgeParent. It can only be one
         int condAttr = -1;
         ArrayList<Integer> edgeAttrs = new ArrayList<>();
-        edgeAttrs.add(edgeParent.u);
-        edgeAttrs.add(edgeParent.v);
+        edgeAttrs.add(edgeParent.getU());
+        edgeAttrs.add(edgeParent.getV());
         for (Integer edgeAttr : edgeAttrs) {
             if (edgeAttr == u) {
                 condAttr = u;
@@ -239,7 +257,7 @@ public class ChowM2D extends AbstractSynopsis {
             }
         }
         if (condAttr == -1) {
-            throw new RuntimeException("Cannot find condAttr for edge " + edgeParent.u + " " + edgeParent.v);
+            throw new RuntimeException("Cannot find condAttr for edge " + edgeParent.getU() + " " + edgeParent.getV());
         }
         return condAttr;
 
@@ -260,9 +278,9 @@ public class ChowM2D extends AbstractSynopsis {
      private void buildGraph() {
         adjMatrix = new ArrayList<>(numAttributes);
         for (int i = 0; i < numAttributes; i++) adjMatrix.add(new ArrayList<>());
-        for (ChowLiu.Edge e : edges) {
-            adjMatrix.get(e.u).add(e.v);
-            adjMatrix.get(e.v).add(e.u);
+        for (Edge e : edges) {
+            adjMatrix.get(e.getU()).add(e.getV());
+            adjMatrix.get(e.getV()).add(e.getU());
         }
      }
 
@@ -313,15 +331,15 @@ public class ChowM2D extends AbstractSynopsis {
         return subtree;
     }
 
-    static List<ChowLiu.Edge> buildFactorization(Set<Integer> subtree, int root, List<List<Integer>> adj) {
-        List<ChowLiu.Edge> factors = new ArrayList<>();
+    static List<Edge> buildFactorization(Set<Integer> subtree, int root, List<List<Integer>> adj) {
+        List<Edge> factors = new ArrayList<>();
         boolean[] visited = new boolean[adj.size()];
         Deque<Integer> stack = new ArrayDeque<>();
         // if root not in query, try something else of subtree
         if (subtree.contains(root)) {
             stack.push(root);
             visited[root] = true;
-            factors.add(new  ChowLiu.Edge(root, root));
+            factors.add(new Edge(root, root));
         } else {
             throw new RuntimeException("Subtree has no root.");
         }
@@ -333,7 +351,7 @@ public class ChowM2D extends AbstractSynopsis {
                 if (subtree.contains(v) && !visited[v]) {
                     visited[v] = true;
                     stack.push(v);
-                    factors.add(new ChowLiu.Edge(Math.min(v,u), Math.max(v,u)));
+                    factors.add(new Edge(Math.min(v,u), Math.max(v,u)));
                 }
             }
         }

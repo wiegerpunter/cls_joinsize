@@ -1,7 +1,8 @@
-package org;
+package org.synopses;
 
 import java.util.Arrays;
 
+@Deprecated
 public class ChowMin {
     int numAttributes;
     CountMin[] singleCMs;

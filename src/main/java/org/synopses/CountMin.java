@@ -1,8 +1,4 @@
-package org;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Random;
+package org.synopses;
 
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
