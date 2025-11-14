@@ -85,6 +85,9 @@ public class TestCompQueries {
 
                 ChowM2D ChowLiuMin2D = new ChowM2D(cardinalities.length, ram, chowLiu);
                 runNaiveMin(ChowLiuMin2D, data, queries, exactAnswer);
+
+                ReservoirSample rs = new ReservoirSample(ram, cardinalities.length);
+                runNaiveMin(rs,  data, queries, exactAnswer);
         }
 
     }

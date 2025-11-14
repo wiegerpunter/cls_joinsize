@@ -31,18 +31,15 @@ public class ChowM2D extends AbstractSynopsis {
         for (int i = 0; i < edges.length; i++) {
             edges[i] = chowLiu.get(i);
         }
-        root_cl = getRoot();
 
         // inverse map of edges to find position
-        // adjacency matrix:
-        buildGraph();
-
         invEdges = new HashMap<>();
         for (int i = 0; i < edges.length; i++) {
             invEdges.put(edges[i], i);
         }
 
-
+        // adjacency matrix:
+        buildGraph();
     }
 
     private int[] getParams(int ram, int numAttributes) {
@@ -55,17 +52,11 @@ public class ChowM2D extends AbstractSynopsis {
         return new int[]{d,(int) Math.sqrt(w)};
     }
 
-    private int getRoot() {
-        HashMap<Integer, Integer> candidateRoots = new HashMap<>();
-        for (ChowLiu.Edge edge : edges) {
-            candidateRoots.put(edge.u, candidateRoots.getOrDefault(edge.u,0) +1);
-            candidateRoots.put(edge.v, candidateRoots.getOrDefault(edge.v,0) +1);
-        }
-        int root = -1; // first candidate with count 1;
-        for (Integer u : candidateRoots.keySet()) {
-            if (candidateRoots.get(u) == 1) {
-                root = u;
-                break;
+    private int getRoot(Set<Integer> subtree) {
+
+        for (Integer i: subtree) {
+            if  (adjMatrix.get(i).size() == 1) {
+                return i;
             }
         }
         if (root == -1) {
@@ -73,6 +64,20 @@ public class ChowM2D extends AbstractSynopsis {
         }
         return root;
 
+
+        for (Integer i: subtree) {
+            boolean leafInSubtree = true;
+            for (int j: adjMatrix.get(i)) {
+                if (subtree.contains(j)){
+                    leafInSubtree = false;
+                    break;
+                }
+            }
+            if (leafInSubtree) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Can't find root node for " + adjMatrix);
     }
     public int getd() {
         return d;
@@ -92,19 +97,22 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
     public int query(int[] record) {
-        ArrayList<Integer> predicates = new ArrayList<>();
+        ArrayList<Integer> active = new ArrayList<>();
+        ArrayList<Integer> notActive = new ArrayList<>();
         for (int i = 0; i < record.length; i++) {
             if (record[i] != -1) {
-                predicates.add(i);
+                active.add(i);
+            } else  {
+                notActive.add(i);
             }
         }
 
-        if (predicates.isEmpty()) {
+        if (active.isEmpty()) {
             return N;
         }
 
-        if (predicates.size() == 1) {
-            return singleCMs[predicates.get(0)].query(record[predicates.get(0)]);
+        if (active.size() == 1) {
+            return singleCMs[active.get(0)].query(record[active.get(0)]);
         }
 
 //        if (predicates.size() == 2) {
@@ -116,36 +124,33 @@ public class ChowM2D extends AbstractSynopsis {
 //        }
 
         // Need ChowLiu tree.
-        Set<Integer> sub = minimalSubtree(record);
+        Set<Integer> sub = minimalSubtree(active);
+
+        int root_cl = getRoot(sub);
         List<ChowLiu.Edge> f = buildFactorization(sub, root_cl, adjMatrix);
 
         // query the pairwise CMs to get to estimate.
 
-        return queryFactors(f, record);
+        return queryFactors(f, record, notActive);
     }
 
-    private int queryFactors(List<ChowLiu.Edge> f, int[] record) {
-        ArrayList<Integer> attrNotInPredicates = new ArrayList<>();
-        for (int i = 0; i < record.length; i++) {
-            if (record[i] == -1) {
-                attrNotInPredicates.add(i);
-            }
-        }
-        ArrayList<Integer> attrNotInPredicatesButInChowPath = new ArrayList<>();
-        for (int i = 0; i < attrNotInPredicates.size(); i++) {
+    private Set<Integer> getAttrNotInPredicatesButInChowPath(List<ChowLiu.Edge> f, ArrayList<Integer> notActive) {
+        Set<Integer> attrNotInPredicatesButInChowPath = new HashSet<>();
+        for (Integer attrNotActive : notActive) {
             for (ChowLiu.Edge edge : f) {
-                if (edge.u == attrNotInPredicates.get(i)) {
-                    if (!attrNotInPredicatesButInChowPath.contains(edge.u)) {
-                        attrNotInPredicatesButInChowPath.add(edge.u);
-                    }
+                if (edge.u == attrNotActive) {
+                    attrNotInPredicatesButInChowPath.add(edge.u);
                 }
-                if (edge.v == attrNotInPredicates.get(i)) {
-                    if (!attrNotInPredicatesButInChowPath.contains(edge.v)) {
-                        attrNotInPredicatesButInChowPath.add(edge.v);
-                    }
+                if (edge.v == attrNotActive) {
+                    attrNotInPredicatesButInChowPath.add(edge.v);
                 }
             }
         }
+        return attrNotInPredicatesButInChowPath;
+    }
+
+    private int queryFactors(List<ChowLiu.Edge> f, int[] record, ArrayList<Integer> notActive) {
+        Set<Integer> attrNotInPredicatesButInChowPath = getAttrNotInPredicatesButInChowPath(f, notActive);
 
         int sumW = 1;
         // assume for now attrNotInPredicatesButInChowPath.size() == 1
@@ -154,7 +159,7 @@ public class ChowM2D extends AbstractSynopsis {
         }
         int attr = -1;
         if (attrNotInPredicatesButInChowPath.size() == 1) {
-            attr = attrNotInPredicatesButInChowPath.get(0);
+            attr = attrNotInPredicatesButInChowPath.iterator().next();
             sumW = w;
         }
 
@@ -297,9 +302,7 @@ public class ChowM2D extends AbstractSynopsis {
 
     // Find minimal subtree (union of paths among predicates)
     // Includes intermediate "hidden" variables like node 1 between 0 and 2.
-    private Set<Integer> minimalSubtree(int[] predicates) {
-        List<Integer> active = new ArrayList<>();
-        for (int i = 0; i < predicates.length; i++) if (predicates[i] != -1) active.add(i);
+    private Set<Integer> minimalSubtree(ArrayList<Integer> active) {
 
         Set<Integer> subtree = new HashSet<>();
         for (int i = 0; i < active.size(); i++) {
@@ -320,10 +323,7 @@ public class ChowM2D extends AbstractSynopsis {
             visited[root] = true;
             factors.add(new  ChowLiu.Edge(root, root));
         } else {
-            int otherRoot =subtree.stream().findFirst().get();
-            stack.push(otherRoot);
-            visited[otherRoot] = true;
-            factors.add(new ChowLiu.Edge(otherRoot, otherRoot));
+            throw new RuntimeException("Subtree has no root.");
         }
 
 
