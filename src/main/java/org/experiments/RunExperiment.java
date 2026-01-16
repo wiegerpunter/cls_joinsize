@@ -10,8 +10,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 public class RunExperiment {
     private final String folder = "/home/wieger/sandboxChowMin/results/";
@@ -22,11 +21,11 @@ public class RunExperiment {
         this.config = config;
 
         for (int ram : config.ramVals) {
-            NaiveMin naiveMin = new NaiveMin(config.cardinalities.length,ram);
-            runSynopsis(naiveMin, data, queries, exactAnswer);
-
-            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
-            runSynopsis(naiveMin2D, data, queries, exactAnswer);
+//            NaiveMin naiveMin = new NaiveMin(config.cardinalities.length,ram);
+//            runSynopsis(naiveMin, data, queries, exactAnswer);
+//
+//            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
+//            runSynopsis(naiveMin2D, data, queries, exactAnswer);
 
             ChowM2D ChowLiuMin2D = new ChowM2D(config.cardinalities.length, ram, chowLiuTree);
             runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
@@ -39,16 +38,19 @@ public class RunExperiment {
 
     private void runSynopsis(AbstractSynopsis nm, int[][] data, int[][] queries, int[] exactAnswer) throws IOException {
 
+        System.out.println(" -------------------------------------");
+        System.out.println("Synopsis: "+ nm.setting + ", RAM: " + nm.ram);
         long start = System.currentTimeMillis();
         for (int[] datum : data) {
             nm.add(datum);
         }
         long end = System.currentTimeMillis();
         int ingestTime = (int) (end - start);
-        System.out.println("Naive min time: " + ingestTime + " ms");
+        System.out.println(nm.setting + " time: " + ingestTime + " ms");
 
         int[] estimateNaiveMin = new int[queries.length];
         int[] errorNaiveMin = new int[queries.length];
+        int[] numLatentAttrs = new int[queries.length];
 
         int[] queryTime = new int[queries.length];
         for (int i = 0; i < queries.length; i++) {
@@ -56,14 +58,15 @@ public class RunExperiment {
             estimateNaiveMin[i]= nm.query(queries[i]);
             end = System.currentTimeMillis();
             queryTime[i] = (int) (end - start);
+            numLatentAttrs[i] = nm.numLatent(queries[i]);
             errorNaiveMin[i] = estimateNaiveMin[i] - exactAnswer[i];
         }
-        stats(exactAnswer, estimateNaiveMin, errorNaiveMin);
+        stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs);
         int memUsage = nm.memoryUsage();
-        writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
+        writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
     }
 
-    private void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage, int ingestTime, int[] queryTime, int d, int w, int ram) throws IOException {
+    private void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws IOException {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -71,24 +74,25 @@ public class RunExperiment {
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram"};
+            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[13];
+            String[] result = new String[14];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
-            result[3] = String.valueOf(ingestTime);
-            result[4] = String.valueOf(queryTime[i]);
-            result[5] = String.valueOf(estimates[i]);
-            result[6] = String.valueOf(exactAnswers[i]);
-            result[7] = String.valueOf(errors[i]);
-            result[8] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i]));
-            result[9] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i])/exactAnswers[i]);
-            result[10] = String.valueOf(d);
-            result[11] = String.valueOf(w);
-            result[12] = String.valueOf(ram);
+            result[3] = String.valueOf(numLatentAttrs[i]);
+            result[4] = String.valueOf(ingestTime);
+            result[5] = String.valueOf(queryTime[i]);
+            result[6] = String.valueOf(estimates[i]);
+            result[7] = String.valueOf(exactAnswers[i]);
+            result[8] = String.valueOf(errors[i]);
+            result[9] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i]));
+            result[10] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i])/exactAnswers[i]);
+            result[11] = String.valueOf(d);
+            result[12] = String.valueOf(w);
+            result[13] = String.valueOf(ram);
 
             writer.writeNext(result);
         }
@@ -96,30 +100,94 @@ public class RunExperiment {
 
     }
 
-    private void stats(int[] exactAnswer, int[] estimateRS, int[] errorRS) {
-        int[] absError = new int[errorRS.length];
-        double[] relError = new double[errorRS.length];
+    private void stats(
+            int[] exactAnswer,
+            int[] estimateRS,
+            int[] errorRS,
+            int[] latentAttrs) {
+
+        Map<Integer, List<Integer>> absErrorByLatent = new HashMap<>();
+        Map<Integer, List<Double>> relErrorByLatent = new HashMap<>();
+        Map<Integer, List<Integer>> errorRSByLatent = new HashMap<>();
+
         for (int i = 0; i < exactAnswer.length; i++) {
-            absError[i] += Math.abs(exactAnswer[i] - estimateRS[i]);
-            relError[i] += (double) Math.abs(exactAnswer[i] - estimateRS[i]) / exactAnswer[i];
+            int latent = latentAttrs[i];
+
+            int absErr = Math.abs(exactAnswer[i] - estimateRS[i]);
+            double relErr = (double) absErr / exactAnswer[i];
+
+            absErrorByLatent
+                    .computeIfAbsent(latent, k -> new ArrayList<>())
+                    .add(absErr);
+
+            relErrorByLatent
+                    .computeIfAbsent(latent, k -> new ArrayList<>())
+                    .add(relErr);
+
+            errorRSByLatent
+                    .computeIfAbsent(latent, k -> new ArrayList<>())
+                    .add(errorRS[i]);
         }
 
-        double[] error = statsError(errorRS);
+        // Print stats per latent attribute
+        for (int latent : absErrorByLatent.keySet()) {
+            System.out.println("LatentAttr = " + latent);
 
-        System.out.printf("Mean err: %f \n",error[0]);
-        System.out.printf("Variance: %f \n", error[2]);
+            double[] errStats =
+                    statsError((ArrayList<Integer>) errorRSByLatent.get(latent));
+            System.out.printf("  Mean err: %f\n", errStats[0]);
+            System.out.printf("  Variance err: %f\n", errStats[2]);
 
-        double[] absErrors = statsError(absError);
-        System.out.printf("Mean absError: %f \n", absErrors[0]);
-        System.out.printf("Variance absError: %f \n", absErrors[2]);
+            double[] absStats =
+                    statsError((ArrayList<Integer>) absErrorByLatent.get(latent));
+            System.out.printf("  Mean absError: %f\n", absStats[0]);
+            System.out.printf("  Variance absError: %f\n", absStats[2]);
 
-        double[] relErrors = statsError(relError);
-        System.out.printf("Mean relError: %f \n", relErrors[0]);
-        System.out.printf("Variance relError: %f \n", relErrors[2]);
+            double[] relStats =
+                    statsError(relErrorByLatent.get(latent));
+            System.out.printf("  Mean relError: %f\n", relStats[0]);
+            System.out.printf("  Variance relError: %f\n", relStats[2]);
 
+            System.out.println();
+        }
     }
 
-    private static double[] statsError(int[] error) {
+//    private void stats(int[] exactAnswer, int[] estimateRS, int[] errorRS, int[] latentAttrs) {
+//        int[] absError = new int[errorRS.length];
+//        double[] relError = new double[errorRS.length];
+//        for (int i = 0; i < exactAnswer.length; i++) {
+//            absError[i] += Math.abs(exactAnswer[i] - estimateRS[i]);
+//            relError[i] += (double) Math.abs(exactAnswer[i] - estimateRS[i]) / exactAnswer[i];
+//        }
+//
+//        double[] error = statsError(errorRS);
+//
+//        System.out.printf("Mean err: %f \n",error[0]);
+//        System.out.printf("Variance: %f \n", error[2]);
+//
+//        double[] absErrors = statsError(absError);
+//        System.out.printf("Mean absError: %f \n", absErrors[0]);
+//        System.out.printf("Variance absError: %f \n", absErrors[2]);
+//
+//        double[] relErrors = statsError(relError);
+//        System.out.printf("Mean relError: %f \n", relErrors[0]);
+//        System.out.printf("Variance relError: %f \n", relErrors[2]);
+//
+//    }
+
+
+
+    private double[] statsError(List<Double> error) {
+        double sum=0;
+        double variance=0;
+        for (double err : error) {
+            sum+=err;
+            variance+=err*err;
+        }
+
+        return new double[]{ sum / error.size(), sum, variance/error.size()};
+    }
+    private static double[] statsError(ArrayList<Integer> error) {
         int sum=0;
         double variance=0;
         for (int err : error) {
@@ -127,7 +195,7 @@ public class RunExperiment {
             variance+=err*err;
         }
 
-        return new double[]{(double) sum / error.length, sum, variance/error.length};
+        return new double[]{(double) sum / error.size(), sum, variance/error.size()};
 
     }
     private static double[] statsError(double[] error) {

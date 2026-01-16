@@ -111,6 +111,33 @@ public class ChowM2D extends AbstractSynopsis {
         return queryFactors(f, record, notActive, attrsInPath);
     }
 
+    public int numLatent(int[] record) {
+        ArrayList<Integer> active = new ArrayList<>();
+        ArrayList<Integer> notActive = new ArrayList<>();
+        checkActive(active, notActive, record);
+
+        if (active.isEmpty()) {
+            return 0;
+        }
+
+        if (active.size() == 1) {
+            return 0;
+        }
+
+        // Need ChowLiu tree.
+        Set<Integer> sub = minimalSubtree(active);
+
+        int root_cl = getRoot(sub);
+        List<Edge> f = buildFactorization(sub, root_cl, adjMatrix);
+        Integer[] attrsInPath = getAttrsInPath(f);
+        Set<Integer> latentAttrs = getLatentAttrs(attrsInPath, notActive);
+        if (latentAttrs.isEmpty()) {
+            return 0;
+        } else {
+            return latentAttrs.size();
+        }
+    }
+
     private void checkActive(ArrayList<Integer> active, ArrayList<Integer> notActive, int[] record) {
         for (int i = 0; i < record.length; i++) {
             if (record[i] != -1) {
@@ -127,7 +154,7 @@ public class ChowM2D extends AbstractSynopsis {
             attrs.add(edge.getS());
             attrs.add(edge.getT());
         }
-        Integer[] attrsArr = (Integer[]) attrs.toArray();
+        Integer[] attrsArr = attrs.toArray(new Integer[0]);
         Arrays.sort(attrsArr);
         return attrsArr;
     }
@@ -178,7 +205,7 @@ public class ChowM2D extends AbstractSynopsis {
         int[] indices = new int[numDimensions];
         double sum = 0;
         while(true) {
-            int[][] k = new int[d][attrsInPath.length];
+            int[][] k = new int[d][numAttributes];
 
             for (int i = 0; i < numDimensions; i++) {
                 Dimension dim = dimensions.get(i);
@@ -193,7 +220,7 @@ public class ChowM2D extends AbstractSynopsis {
                         throw new RuntimeException("Latent attribute is root");
                     }
                     Edge root = getEdge(edge.getS());
-                    product_p = scheme.get(root).queryMarginalCodomain(edge.getS(), k);
+                    product_p = (double) scheme.get(root).queryMarginalCodomain(edge.getS(), k) / N;
 //                        // single node:
 //                        if (edge.getT() == latentAttr) {
 //                            product_p = singleCMs[latentAttr].queryCell(j, i) / N;
@@ -243,18 +270,18 @@ public class ChowM2D extends AbstractSynopsis {
             boolean isLatent = latentAttrs.contains(i);
             int[] codomain;
             if (!isLatent) {
-                codomain = getCodomain(i, record[i]); // format int[d rows]
+                codomain = getCodomain(attrsInPath[i], record[attrsInPath[i]]); // format int[d rows]
             } else {
                 codomain = new int[w]; // format int[w]
             }
             for (int j = 0; j < d; j++) {
                 if (!isLatent) {
-                    dimensions.add( new Dimension(i, j, new int[]{codomain[j]}));
+                    dimensions.add( new Dimension(attrsInPath[i], j, new int[]{codomain[j]}));
                 } else {
                     for (int k = 0; k < w; k++) {
                         codomain[k] = k;
                     }
-                    dimensions.add(new Dimension(i, j, codomain));
+                    dimensions.add(new Dimension(attrsInPath[i], j, codomain));
                 }
             }
         }

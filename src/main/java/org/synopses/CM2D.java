@@ -69,6 +69,11 @@ public class CM2D extends AbstractSynopsis {
         return w;
     }
 
+    @Override
+    public int numLatent(int[] query) {
+        return 0;
+    }
+
     public void add(int[] record) {
         N += 1;
         for (int i = 0; i < numAttributes; i++) {

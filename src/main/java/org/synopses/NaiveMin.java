@@ -68,6 +68,11 @@ public class NaiveMin extends AbstractSynopsis {
     }
 
     @Override
+    public int numLatent(int[] query) {
+        return 0;
+    }
+
+    @Override
     public void add(int[] record) {
         N += 1;
         for (int i = 0; i < numAttributes; i++) {

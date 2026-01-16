@@ -62,4 +62,9 @@ public class ReservoirSample extends AbstractSynopsis{
     public int getw() {
         return 0;
     }
+
+    @Override
+    public int numLatent(int[] query) {
+        return 0;
+    }
 }

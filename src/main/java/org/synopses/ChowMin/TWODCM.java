@@ -80,7 +80,7 @@ public class TWODCM {
     }
 
 
-    public Object queryCodomain(int[][] k, Edge edge) {
+    public int queryCodomain(int[][] k, Edge edge) {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < k.length; j++) {
             int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
