@@ -6,6 +6,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class NaiveMin extends AbstractSynopsis {
+    /*
+     Pairwise summary for all attributes x attributes, plus a single CM for every attribute.
+     Pairwise Summary is CM with a composite hash key.
+     */
+
+
     CountMin[] singleCMs;
     CountMin[] doubleCMs;
     Edge[] edges;
@@ -68,7 +74,7 @@ public class NaiveMin extends AbstractSynopsis {
             singleCMs[i].add(record[i]);
         }
         for (int i = 0; i < edges.length; i++) {
-            doubleCMs[i].add(record[edges[i].getU()], record[edges[i].getV()]);
+            doubleCMs[i].add(record[edges[i].getS()], record[edges[i].getT()]);
         }
     }
 

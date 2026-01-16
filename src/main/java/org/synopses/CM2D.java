@@ -1,5 +1,6 @@
 package org.synopses;
 
+import org.synopses.ChowMin.TWODCM;
 import org.utils.Edge;
 
 import java.util.ArrayList;
@@ -7,8 +8,12 @@ import java.util.HashMap;
 
 
 public class CM2D extends AbstractSynopsis {
+    /*
+     Pairwise summary for all attributes x attributes, plus a single CM for every attribute.
+     Pairwise summary updates counter at cell [h_x(x), h_y(y)].
+     */
     CountMin[] singleCMs;
-    CountMinHashColumns[] doubleCMs;
+    TWODCM[] doubleCMs;
     Edge[] edges;
     HashMap<Edge, Integer> invEdges;
     private final int d;
@@ -25,9 +30,9 @@ public class CM2D extends AbstractSynopsis {
         for (int i = 0; i < singleCMs.length; i++) {
             singleCMs[i] = new CountMin(d, w);
         }
-        doubleCMs = new CountMinHashColumns[(numAttributes*numAttributes - numAttributes)/2];
+        doubleCMs = new TWODCM[(numAttributes*numAttributes - numAttributes)/2];
         for (int i = 0; i < doubleCMs.length; i++) {
-            doubleCMs[i] = new CountMinHashColumns(d, w);
+            doubleCMs[i] = new TWODCM(d, w, new Edge(1,1));
         }
         edges = new Edge[(numAttributes*numAttributes - numAttributes)/2];
         int count=0;
@@ -70,7 +75,7 @@ public class CM2D extends AbstractSynopsis {
             singleCMs[i].add(record[i]);
         }
         for (int i = 0; i < edges.length; i++) {
-            doubleCMs[i].add(record[edges[i].getU()], record[edges[i].getV()]);
+            doubleCMs[i].add(record[edges[i].getS()], record[edges[i].getT()]);
         }
     }
 

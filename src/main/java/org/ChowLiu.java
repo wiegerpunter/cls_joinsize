@@ -89,7 +89,7 @@ public class ChowLiu {
 
         List<Edge> chowLiuTree = chowLiu(MIs);
         for (Edge e : chowLiuTree) {
-            System.out.printf("Edge (%d, %d)", e.getU(), e.getV());
+            System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
         }
         // get max span tree for ChowLiu:
         return chowLiuTree;
@@ -136,7 +136,7 @@ public class ChowLiu {
 
         List<Edge> tree = chowLiu(MI);
         for (Edge e : tree) {
-            System.out.printf("Edge (%d, %d)", e.getU(), e.getV());
+            System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
         }
     }
 }

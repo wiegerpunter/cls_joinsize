@@ -1,31 +1,31 @@
 package org.utils;
 
 public class Edge {
-    int u, v;
-    public Edge(int u, int v) {
-        this.u = u;
-        this.v = v;
+    int s, t;
+    public Edge(int s, int t) {
+        this.s = s;
+        this.t = t;
     }
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true; // same object
         if (!(obj instanceof Edge other)) return false;
-        if (this.u == other.u && this.v == other.v) return true;
+        if (this.s == other.s && this.t == other.t) return true;
         return false;
     }
 
     @Override
     public int hashCode() {
-        return u + v;
+        return s + t;
     }
 
-    public int getU() {
-        return u;
+    public int getS() {
+        return s;
     }
 
-    public int getV() {
-        return v;
+    public int getT() {
+        return t;
     }
 
 }

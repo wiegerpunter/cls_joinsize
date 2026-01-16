@@ -2,6 +2,7 @@ package org.experiments;
 
 import com.opencsv.CSVWriter;
 import org.synopses.*;
+import org.synopses.ChowMin.ChowM2D;
 import org.utils.Config;
 import org.utils.Edge;
 

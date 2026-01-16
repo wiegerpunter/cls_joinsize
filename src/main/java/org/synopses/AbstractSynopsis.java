@@ -3,7 +3,7 @@ package org.synopses;
 
 public abstract class AbstractSynopsis {
     public int ram;
-    int numAttributes;
+    public int numAttributes;
     public int N = 0;
     public String setting;
 
