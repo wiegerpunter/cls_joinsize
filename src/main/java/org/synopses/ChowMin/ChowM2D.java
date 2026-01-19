@@ -10,28 +10,21 @@ public class ChowM2D extends AbstractSynopsis {
     /*
      Pairwise summary for edges in ChowLiu tree. plus currently a single CM for every attribute.
      Pairwise summary updates counter at cell [h_x(x), h_y(y)].
-
-     Todo:
-        * Detach the CL stuff from the sketch class.
-
      */
-
     HashMap<Edge, TWODCM> scheme;
-
-    TWODCM[] doubleCMs;
     List<Edge> edges;
-    HashMap<Edge, Integer> invEdges;
     private final int d;
     private final int w;
     List<List<Integer>> adjMatrix;
+
     public ChowM2D(int numAttributes, int ram, List<Edge> chowLiu) {
-        setting = "ChowM2D";
+        this.setting = "ChowM2D";
         this.ram = ram;
+        this.numAttributes = numAttributes;
+        this.edges = chowLiu;
         int[] params = getParams(ram, numAttributes);
         this.d = params[0];
         this.w = params[1];
-        this.numAttributes = numAttributes;
-        this.edges = chowLiu;
         scheme = new HashMap<>();
         for (Edge edge : chowLiu) {
             scheme.put(edge, new TWODCM(d, w, edge));
@@ -40,52 +33,12 @@ public class ChowM2D extends AbstractSynopsis {
         buildGraph();
     }
 
-    private int[] getParams(int ram, int numAttributes) {
-        int d = 3;
-        // number of CMs needed: numAttributes + numAttributes - 1
-        int numCMs = numAttributes + numAttributes - 1;
-        int w = ram / (d * numCMs * 4);
-        System.out.println("Chow M2D has parameters d: " + d + " w: " +(int) Math.sqrt(w));
-
-        return new int[]{d,(int) Math.sqrt(w)};
-    }
-
-    private int getRoot(Set<Integer> subtree) {
-
-        for (Integer i: subtree) {
-            if  (adjMatrix.get(i).size() == 1) {
-                return i;
-            }
-        }
-
-        for (Integer i: subtree) {
-            boolean leafInSubtree = true;
-            for (int j: adjMatrix.get(i)) {
-                if (subtree.contains(j)){
-                    leafInSubtree = false;
-                    break;
-                }
-            }
-            if (leafInSubtree) {
-                return i;
-            }
-        }
-        throw new RuntimeException("Can't find root node for " + adjMatrix);
-    }
-    public int getd() {
-        return d;
-    }
-    public int getw() {
-        return w;
-    }
-
     public void add(int[] record) {
         N += 1;
         for (Edge edge : edges) {
             scheme.get(edge).add(record[edge.getS()], record[edge.getT()]);
         }
     }
-
 
     public int query(int[] record) {
         ArrayList<Integer> active = new ArrayList<>();
@@ -105,7 +58,7 @@ public class ChowM2D extends AbstractSynopsis {
 
         int root_cl = getRoot(sub);
         List<Edge> f = buildFactorization(sub, root_cl, adjMatrix);
-        Integer[] attrsInPath = getAttrsInPath(f);
+        HashSet<Integer> attrsInPath = getAttrsInPath(f);
         // query the pairwise CMs to get to estimate.
 
         return queryFactors(f, record, notActive, attrsInPath);
@@ -129,7 +82,7 @@ public class ChowM2D extends AbstractSynopsis {
 
         int root_cl = getRoot(sub);
         List<Edge> f = buildFactorization(sub, root_cl, adjMatrix);
-        Integer[] attrsInPath = getAttrsInPath(f);
+        HashSet<Integer> attrsInPath = getAttrsInPath(f);
         Set<Integer> latentAttrs = getLatentAttrs(attrsInPath, notActive);
         if (latentAttrs.isEmpty()) {
             return 0;
@@ -148,15 +101,13 @@ public class ChowM2D extends AbstractSynopsis {
         }
     }
 
-    private Integer[] getAttrsInPath(List<Edge> f) {
+    private HashSet<Integer> getAttrsInPath(List<Edge> f) {
         HashSet<Integer> attrs= new HashSet<Integer>();
         for (Edge edge : f){
             attrs.add(edge.getS());
             attrs.add(edge.getT());
         }
-        Integer[] attrsArr = attrs.toArray(new Integer[0]);
-        Arrays.sort(attrsArr);
-        return attrsArr;
+        return attrs;
     }
 
     private int marginal(Integer attr, int predicate) {
@@ -185,22 +136,23 @@ public class ChowM2D extends AbstractSynopsis {
         return scheme.get(e).queryMarginalCodomain(condAttr, k);
     }
 
-    private Set<Integer> getLatentAttrs(Integer[] attrsInPath, ArrayList<Integer> notActive) {
-        Set<Integer> attrNotInPredicatesButInChowPath = new HashSet<>();
+    private Set<Integer> getLatentAttrs(HashSet<Integer> attrsInPath, ArrayList<Integer> notActive) {
+        Set<Integer> latentAttrs = new HashSet<>();
         for (Integer attrNotActive : notActive) {
             for (Integer attr: attrsInPath) {
                 if (Objects.equals(attr, attrNotActive)) {
-                    attrNotInPredicatesButInChowPath.add(attr);
+                    latentAttrs.add(attr);
                 }
             }
         }
-        return attrNotInPredicatesButInChowPath;
+        return latentAttrs;
     }
 
-    private int queryFactors(List<Edge> f, int[] record, ArrayList<Integer> notActive, Integer[] attrsInPath) {
+    ArrayList<Dimension> dimensions = new ArrayList<>();
+    private int queryFactors(List<Edge> f, int[] record, ArrayList<Integer> notActive, HashSet<Integer> attrsInPath) {
         Set<Integer> latentAttrs = getLatentAttrs(attrsInPath, notActive);
         int minEstimate = Integer.MAX_VALUE;
-        List<Dimension> dimensions = constructDimensions(record, attrsInPath, latentAttrs);
+        constructDimensions(record, attrsInPath, latentAttrs);
         int numDimensions = dimensions.size();
         int[] indices = new int[numDimensions];
         double sum = 0;
@@ -219,14 +171,8 @@ public class ChowM2D extends AbstractSynopsis {
                     if (latentAttrs.contains(edge.getS())) {
                         throw new RuntimeException("Latent attribute is root");
                     }
-                    Edge root = getEdge(edge.getS());
-                    product_p = (double) scheme.get(root).queryMarginalCodomain(edge.getS(), k) / N;
-//                        // single node:
-//                        if (edge.getT() == latentAttr) {
-//                            product_p = singleCMs[latentAttr].queryCell(j, i) / N;
-//                        } else {
-//                            product_p = (double) singleCMs[edge.getS()].query(record[edge.getS()]) / N;
-//                        }
+                    Edge edgeOfRoot = getEdge(edge.getS());
+                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k) / N;
                 } else {
                     double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge) / N;
                     int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
@@ -237,7 +183,6 @@ public class ChowM2D extends AbstractSynopsis {
             if (product_p > 0) {
                 sum += product_p;
             }
-
 
             int pos = numDimensions - 1;
             while (pos >= 0) {
@@ -264,28 +209,31 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
 
-    private List<Dimension>  constructDimensions(int[] record, Integer[] attrsInPath, Set<Integer> latentAttrs) {
-        List<Dimension> dimensions = new ArrayList<>();
-        for (int i = 0; i < attrsInPath.length; i++) {
+    void constructDimensions(int[] record, HashSet<Integer> attrsInPath, Set<Integer> latentAttrs) {
+        dimensions = new ArrayList<>();
+        for (int i = 0; i < numAttributes; i++) {
             boolean isLatent = latentAttrs.contains(i);
+            boolean isInPath = attrsInPath.contains(i);
+            if (!isInPath && !isLatent) {
+                continue;
+            }
             int[] codomain;
             if (!isLatent) {
-                codomain = getCodomain(attrsInPath[i], record[attrsInPath[i]]); // format int[d rows]
+                codomain = getCodomain(i, record[i]); // format int[d rows]
             } else {
                 codomain = new int[w]; // format int[w]
             }
             for (int j = 0; j < d; j++) {
                 if (!isLatent) {
-                    dimensions.add( new Dimension(attrsInPath[i], j, new int[]{codomain[j]}));
+                    dimensions.add(new Dimension(i, j, new int[]{codomain[j]}));
                 } else {
                     for (int k = 0; k < w; k++) {
                         codomain[k] = k;
                     }
-                    dimensions.add(new Dimension(attrsInPath[i], j, codomain));
+                    dimensions.add(new Dimension(i, j, codomain));
                 }
             }
         }
-        return dimensions;
     }
 
     private int[] getCodomain(int attr, int predicate) {
@@ -372,7 +320,7 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
     // Find minimal subtree (union of paths among predicates)
-    // Includes intermediate "hidden" variables like node 1 between 0 and 2.
+    // Includes "hidden" latent variables like node 1 between 0 and 2.
     private Set<Integer> minimalSubtree(ArrayList<Integer> active) {
 
         Set<Integer> subtree = new HashSet<>();
@@ -410,5 +358,42 @@ public class ChowM2D extends AbstractSynopsis {
         return factors;
     }
 
+    private int[] getParams(int ram, int numAttributes) {
+        int d = 3;
+        // number of CMs needed: numAttributes + numAttributes - 1
+        int numCMs = numAttributes - 1;
+        int w = ram / (d * numCMs * 4);
+        System.out.println("Chow M2D has parameters d: " + d + " w: " +(int) Math.sqrt(w));
 
+        return new int[]{d,(int) Math.sqrt(w)};
+    }
+
+    private int getRoot(Set<Integer> subtree) {
+
+        for (Integer i: subtree) {
+            if  (adjMatrix.get(i).size() == 1) {
+                return i;
+            }
+        }
+
+        for (Integer i: subtree) {
+            boolean leafInSubtree = true;
+            for (int j: adjMatrix.get(i)) {
+                if (subtree.contains(j)){
+                    leafInSubtree = false;
+                    break;
+                }
+            }
+            if (leafInSubtree) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Can't find root node for " + adjMatrix);
+    }
+    public int getd() {
+        return d;
+    }
+    public int getw() {
+        return w;
+    }
 }

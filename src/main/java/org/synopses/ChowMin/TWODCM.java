@@ -115,7 +115,7 @@ public class TWODCM {
         return marginal(predIdxs, attr);
     }
 
-    private int marginal(int[] predIdxs, int attr) {
+    int marginal(int[] predIdxs, int attr) {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < depth; j++) {
             int sumRowEst = 0;
@@ -136,7 +136,7 @@ public class TWODCM {
         return minEstimate;
     }
 
-    private int[] getPredIdx(int predicate, int attr) {
+    int[] getPredIdx(int predicate, int attr) {
         if (attrS == attr) {
             computeHashes(xxS, predicate, reusableHashesS);
             return reusableHashesS;
