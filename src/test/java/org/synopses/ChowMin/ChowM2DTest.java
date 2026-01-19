@@ -77,7 +77,7 @@ public class ChowM2DTest {
     @Test
     void testDimensions() {
         int numAttributes = 4;
-        int ram = 10000;
+        int ram = 1000;
         ChowM2D c = new ChowM2D(numAttributes, ram, getChowLiu());
 
 
@@ -91,9 +91,67 @@ public class ChowM2DTest {
         c.constructDimensions(record, attrsInPath, latentAttrs);
         // print the dimensions:
 
-        for (Dimension d : c.dimensions){
-            System.out.println(d.row + ", " + d.attribute + ", " + Arrays.toString(d.values));
+        for (AttributeDimension d : c.attributeDimensions){
+            for (int j = 0; j < d.valuesPerCodomain.length; j++) {
+
+                System.out.println(d.attribute + ", j: " + j + ", val: " + Arrays.toString(d.valuesPerCodomain[j]));
+            }
         }
         System.out.println("----------------");
     }
+
+    @Test
+        void testLoop() {
+        int numAttributes = 4;
+        int ram = 1000;
+        ChowM2D c = new ChowM2D(numAttributes, ram, getChowLiu());
+
+        int[] record = new int[]{1,2,3,4};
+        HashSet<Integer> attrsInPath = new HashSet<>();
+        attrsInPath.add(1);
+        attrsInPath.add(2);
+        attrsInPath.add(3);
+        Set<Integer> latentAttrs = new HashSet<>();
+        latentAttrs.add(0);
+        queryFactorsTest(c, record, latentAttrs, attrsInPath);
+
+    }
+       void queryFactorsTest(ChowM2D c, int[] record, Set<Integer> latentAttrs, HashSet<Integer> attrsInPath) {
+           c.constructDimensions(record, attrsInPath, latentAttrs);
+           int numDimensions = c.attributeDimensions.size();
+           int[] indices = new int[numDimensions];
+           double sum = 0;
+           while (true) {
+               int[][] k = new int[c.getd()][c.numAttributes];
+
+               for (int i = 0; i < numDimensions; i++) {
+                   AttributeDimension dim = c.attributeDimensions.get(i);
+                   int codomainIndex = indices[i];
+                   for (int j = 0; j < c.getd(); j++) {
+                       k[j][dim.attribute] = dim.valuesPerCodomain[j][codomainIndex];
+                   }
+               }
+
+
+               for (int j = 0; j < k.length; j++) {
+                   for (int ks = 0; ks < k[j].length; ks++) {
+                       System.out.println("d: " + j + ", a: " + ks + ", val: " + k[j][ks]);
+                   }
+               }
+
+               int pos = numDimensions - 1;
+               while (pos >= 0) {
+                   indices[pos]++;
+                   if (indices[pos] < c.attributeDimensions.get(pos).codomainSize) { //todo: again link to attribute
+                       break;
+                   }
+                   indices[pos] = 0;
+                   pos--;
+               }
+
+               if (pos < 0) {
+                   break; // all combinations exhausted
+               }
+           }
+       }
 }

@@ -1,9 +1,11 @@
 package org.synopses.ChowMin;
 
+import org.checkerframework.checker.units.qual.A;
 import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
 
 import java.util.*;
+import java.util.stream.IntStream;
 
 
 public class ChowM2D extends AbstractSynopsis {
@@ -119,7 +121,7 @@ public class ChowM2D extends AbstractSynopsis {
         }
     }
 
-    private Edge getEdge(Integer attr) {
+    Edge getEdge(Integer attr) {
         int secAttr;
         if (!adjMatrix.get(attr).isEmpty()) { // check if it's empty.
             secAttr = adjMatrix.get(attr).get(0);
@@ -131,12 +133,12 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
 
-    private int queryMarginalCodomain(int[][] k, int condAttr) {
+    int queryMarginalCodomain(int[][] k, int condAttr) {
         Edge e = getEdge(condAttr);
         return scheme.get(e).queryMarginalCodomain(condAttr, k);
     }
 
-    private Set<Integer> getLatentAttrs(HashSet<Integer> attrsInPath, ArrayList<Integer> notActive) {
+    Set<Integer> getLatentAttrs(HashSet<Integer> attrsInPath, ArrayList<Integer> notActive) {
         Set<Integer> latentAttrs = new HashSet<>();
         for (Integer attrNotActive : notActive) {
             for (Integer attr: attrsInPath) {
@@ -148,20 +150,24 @@ public class ChowM2D extends AbstractSynopsis {
         return latentAttrs;
     }
 
-    ArrayList<Dimension> dimensions = new ArrayList<>();
+    ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
     private int queryFactors(List<Edge> f, int[] record, ArrayList<Integer> notActive, HashSet<Integer> attrsInPath) {
         Set<Integer> latentAttrs = getLatentAttrs(attrsInPath, notActive);
+//        int attrsInQuery = attrsInPath.size() + latentAttrs.size();
         int minEstimate = Integer.MAX_VALUE;
         constructDimensions(record, attrsInPath, latentAttrs);
-        int numDimensions = dimensions.size();
+        int numDimensions = attributeDimensions.size();
         int[] indices = new int[numDimensions];
         double sum = 0;
         while(true) {
             int[][] k = new int[d][numAttributes];
 
             for (int i = 0; i < numDimensions; i++) {
-                Dimension dim = dimensions.get(i);
-                k[dim.row][dim.attribute] = dim.values[indices[i]];
+                AttributeDimension dim = attributeDimensions.get(i);
+                int codomainIndex = indices[i];
+                for (int j = 0; j < d; j++) {
+                    k[j][dim.attribute] = dim.valuesPerCodomain[j][codomainIndex];
+                }
             }
 
             double product_p = 0;
@@ -187,7 +193,7 @@ public class ChowM2D extends AbstractSynopsis {
             int pos = numDimensions - 1;
             while (pos >= 0) {
                 indices[pos]++;
-                if (indices[pos] < dimensions.get(pos).values.length) {
+                if (indices[pos] < attributeDimensions.get(pos).codomainSize) { //todo: again link to attribute
                     break;
                 }
                 indices[pos] = 0;
@@ -208,9 +214,8 @@ public class ChowM2D extends AbstractSynopsis {
         return minEstimate;
     }
 
-
     void constructDimensions(int[] record, HashSet<Integer> attrsInPath, Set<Integer> latentAttrs) {
-        dimensions = new ArrayList<>();
+        attributeDimensions = new ArrayList<>();
         for (int i = 0; i < numAttributes; i++) {
             boolean isLatent = latentAttrs.contains(i);
             boolean isInPath = attrsInPath.contains(i);
@@ -220,18 +225,17 @@ public class ChowM2D extends AbstractSynopsis {
             int[] codomain;
             if (!isLatent) {
                 codomain = getCodomain(i, record[i]); // format int[d rows]
-            } else {
-                codomain = new int[w]; // format int[w]
-            }
-            for (int j = 0; j < d; j++) {
-                if (!isLatent) {
-                    dimensions.add(new Dimension(i, j, new int[]{codomain[j]}));
-                } else {
-                    for (int k = 0; k < w; k++) {
-                        codomain[k] = k;
-                    }
-                    dimensions.add(new Dimension(i, j, codomain));
+                int[][] valuesCodomain = new int[d][1];
+                for (int j = 0; j < codomain.length; j++) {
+                    valuesCodomain[j] = new int[]{codomain[j]};
                 }
+                attributeDimensions.add(new AttributeDimension(i, valuesCodomain));
+            } else {
+                int[][] valuesCodomain = new int[d][w];
+                for (int j = 0; j < valuesCodomain.length; j++) {
+                    valuesCodomain[j] = IntStream.range(0,valuesCodomain[j].length).toArray();
+                }
+                attributeDimensions.add(new AttributeDimension(i, valuesCodomain));
             }
         }
     }
@@ -244,7 +248,7 @@ public class ChowM2D extends AbstractSynopsis {
         return scheme.get(e).getCodomain(attr, predicate);
     }
 
-    private int getCondAttr(int u, int v, Edge edgeParent) {
+    int getCondAttr(int u, int v, Edge edgeParent) {
         // which of u and v is in edgeParent. It can only be one
         int condAttr = -1;
         ArrayList<Integer> edgeAttrs = new ArrayList<>();
@@ -395,5 +399,9 @@ public class ChowM2D extends AbstractSynopsis {
     }
     public int getw() {
         return w;
+    }
+
+    public double getN() {
+        return N;
     }
 }
