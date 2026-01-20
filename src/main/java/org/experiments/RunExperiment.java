@@ -66,10 +66,10 @@ public class RunExperiment {
         }
         stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs, queryTime);
         int memUsage = nm.memoryUsage();
-        writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
+        writeResults(nm.setting, queries, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
     }
 
-    private void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws Exception {
+    private void writeResults(String setting, int[][] queries, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -77,11 +77,11 @@ public class RunExperiment {
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram"};
+            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram","query","numPredicates"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[14];
+            String[] result = new String[16];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
@@ -96,11 +96,23 @@ public class RunExperiment {
             result[11] = String.valueOf(d);
             result[12] = String.valueOf(w);
             result[13] = String.valueOf(ram);
+            result[14] = Arrays.toString(queries[i]);
+            result[15] = numPredicates(queries[i]);
 
             writer.writeNext(result);
         }
         writer.close();
 
+    }
+
+    private String numPredicates(int[] query) {
+        int numPredicates = 0;
+        for (int q: query) {
+            if (q != -1) {
+                numPredicates++;
+            }
+        }
+        return Integer.toString(numPredicates);
     }
 
     private void stats(
