@@ -133,9 +133,9 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
 
-    int queryMarginalCodomain(int[][] k, int condAttr) {
+    int queryMarginalCodomain(int[][] k, int condAttr, boolean hasLatent, int row) {
         Edge e = getEdge(condAttr);
-        return scheme.get(e).queryMarginalCodomain(condAttr, k);
+        return scheme.get(e).queryMarginalCodomain(condAttr, k, hasLatent, row);
     }
 
     Set<Integer> getLatentAttrs(HashSet<Integer> attrsInPath, ArrayList<Integer> notActive) {
@@ -158,9 +158,10 @@ public class ChowM2D extends AbstractSynopsis {
         constructDimensions(record, attrsInPath, latentAttrs);
         int numDimensions = attributeDimensions.size();
         int[] indices = new int[numDimensions];
-        double sum = 0;
-        while(true) {
-            int[][] k = new int[d][numAttributes];
+        for (int row = 0; row < d; row++) {
+            double sum = 0;
+            while (true) {
+                int[][] k = new int[d][numAttributes];
 
             for (int i = 0; i < numDimensions; i++) {
                 AttributeDimension dim = attributeDimensions.get(i);
@@ -170,48 +171,57 @@ public class ChowM2D extends AbstractSynopsis {
                 }
             }
 
-            double product_p = 0;
-            for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
-                Edge edge = f.get(cl_idx);
-                if (edge.getS() == edge.getT()) {
-                    if (latentAttrs.contains(edge.getS())) {
-                        throw new RuntimeException("Latent attribute is root");
+                double product_p = 0;
+                for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
+                    Edge edge = f.get(cl_idx);
+                    if (edge.getS() == edge.getT()) {
+                        if (latentAttrs.contains(edge.getS())) {
+                            throw new RuntimeException("Latent attribute is root");
+                        }
+                        Edge edgeOfRoot = getEdge(edge.getS());
+                        product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k, false, row) / N;
+                    } else {
+                        boolean hasLatent = edgeHasLatent(edge, latentAttrs);
+                        double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
+                        int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
+                        double denominator = (double) queryMarginalCodomain(k, condAttr, latentAttrs.contains(condAttr), row) / N;
+                        product_p *= jointFreq / denominator;
                     }
-                    Edge edgeOfRoot = getEdge(edge.getS());
-                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k) / N;
-                } else {
-                    double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge) / N;
-                    int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
-                    double denominator = (double) queryMarginalCodomain(k, condAttr) / N;
-                    product_p *= jointFreq / denominator;
+                }
+                if (product_p > 0) {
+                    sum += product_p;
+                }
+
+                int pos = numDimensions - 1;
+                while (pos >= 0) {
+                    indices[pos]++;
+                    if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
+                        break;
+                    }
+                    indices[pos] = 0;
+                    pos--;
+                }
+
+                if (pos < 0) {
+                    break; // all combinations exhausted
                 }
             }
-            if (product_p > 0) {
-                sum += product_p;
+            int estimate = (int) (N * sum);
+            if (estimate < minEstimate) {
+                minEstimate = estimate;
             }
-
-            int pos = numDimensions - 1;
-            while (pos >= 0) {
-                indices[pos]++;
-                if (indices[pos] < attributeDimensions.get(pos).codomainSize) { //todo: again link to attribute
-                    break;
-                }
-                indices[pos] = 0;
-                pos--;
+            if (minEstimate == Integer.MAX_VALUE) {
+                throw new RuntimeException("Estimate max integer");
             }
-
-            if (pos < 0) {
-                break; // all combinations exhausted
-            }
-        }
-        int estimate = (int) (N * sum);
-        if (estimate < minEstimate) {
-            minEstimate = estimate;
-        }
-        if (minEstimate == Integer.MAX_VALUE) {
-            throw new RuntimeException("Estimate max integer");
         }
         return minEstimate;
+    }
+
+    private boolean edgeHasLatent(Edge edge, Set<Integer> latentAttrs) {
+        // Decide whether edge has a latent variable.
+        if (latentAttrs.contains(edge.getS())) {
+            return true;
+        } else return latentAttrs.contains(edge.getT());
     }
 
     void constructDimensions(int[] record, HashSet<Integer> attrsInPath, Set<Integer> latentAttrs) {

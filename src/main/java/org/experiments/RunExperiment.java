@@ -1,6 +1,7 @@
 package org.experiments;
 
 import com.opencsv.CSVWriter;
+import org.jfree.chart.plot.Plot;
 import org.synopses.*;
 import org.synopses.ChowMin.ChowM2D;
 import org.utils.Config;
@@ -17,7 +18,7 @@ public class RunExperiment {
     private final String CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
 
     Config config;
-    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, List<Edge> chowLiuTree) throws IOException {
+    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, List<Edge> chowLiuTree) throws Exception {
         this.config = config;
 
         for (int ram : config.ramVals) {
@@ -33,10 +34,12 @@ public class RunExperiment {
             ReservoirSample rs = new ReservoirSample(ram, config.cardinalities.length);
             runSynopsis(rs,  data, queries, exactAnswer);
         }
+
+        PlotRunner.main(new String[]{CSV_FILE_NAME});
     }
 
 
-    private void runSynopsis(AbstractSynopsis nm, int[][] data, int[][] queries, int[] exactAnswer) throws IOException {
+    private void runSynopsis(AbstractSynopsis nm, int[][] data, int[][] queries, int[] exactAnswer) throws Exception {
 
         System.out.println(" -------------------------------------");
         System.out.println("Synopsis: "+ nm.setting + ", RAM: " + nm.ram);
@@ -46,7 +49,7 @@ public class RunExperiment {
         }
         long end = System.currentTimeMillis();
         int ingestTime = (int) (end - start);
-        System.out.println(nm.setting + " time: " + ingestTime + " ms");
+        System.out.println(nm.setting + " Ingestion time: " + ingestTime + " ms");
 
         int[] estimateNaiveMin = new int[queries.length];
         int[] errorNaiveMin = new int[queries.length];
@@ -61,12 +64,12 @@ public class RunExperiment {
             numLatentAttrs[i] = nm.numLatent(queries[i]);
             errorNaiveMin[i] = estimateNaiveMin[i] - exactAnswer[i];
         }
-        stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs);
+        stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs, queryTime);
         int memUsage = nm.memoryUsage();
         writeResults(nm.setting, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
     }
 
-    private void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws IOException {
+    private void writeResults(String setting, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -104,11 +107,13 @@ public class RunExperiment {
             int[] exactAnswer,
             int[] estimateRS,
             int[] errorRS,
-            int[] latentAttrs) {
+            int[] latentAttrs,
+            int[] queryTime) {
 
         Map<Integer, List<Integer>> absErrorByLatent = new HashMap<>();
         Map<Integer, List<Double>> relErrorByLatent = new HashMap<>();
         Map<Integer, List<Integer>> errorRSByLatent = new HashMap<>();
+        Map<Integer, List<Integer>> qtimeByLatent = new HashMap<>();
 
         for (int i = 0; i < exactAnswer.length; i++) {
             int latent = latentAttrs[i];
@@ -127,6 +132,10 @@ public class RunExperiment {
             errorRSByLatent
                     .computeIfAbsent(latent, k -> new ArrayList<>())
                     .add(errorRS[i]);
+
+            qtimeByLatent
+                    .computeIfAbsent(latent, k -> new ArrayList<>())
+                    .add(queryTime[i]);
         }
 
         // Print stats per latent attribute
@@ -148,6 +157,10 @@ public class RunExperiment {
             System.out.printf("  Mean relError: %f\n", relStats[0]);
             System.out.printf("  Variance relError: %f\n", relStats[2]);
 
+            double[] qtimeStats =
+                    statsError((ArrayList<Integer>) qtimeByLatent.get(latent));
+            System.out.printf(" Mean query time: %f\n", qtimeStats[0]);
+            System.out.printf(" Variance Query time: %f\n", qtimeStats[2]);
             System.out.println();
         }
     }

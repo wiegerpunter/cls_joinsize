@@ -4,6 +4,8 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.utils.Edge;
 
+import java.util.stream.IntStream;
+
 public class TWODCM {
     public int[][][] CM;
     private final int depth;
@@ -80,12 +82,16 @@ public class TWODCM {
     }
 
 
-    public int queryCodomain(int[][] k, Edge edge) {
+    public int queryCodomain(int[][] k, Edge edge, boolean hasLatent, int row) {
         int minEstimate = Integer.MAX_VALUE;
-        for (int j = 0; j < k.length; j++) {
-            int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
-            if (minEstimate > estimate) {
-                minEstimate = estimate;
+        if (hasLatent) {
+            return CM[row][k[row][edge.getS()]][k[row][edge.getT()]];
+        } else {
+            for (int j = 0; j < k.length; j++) {
+                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
+                if (minEstimate > estimate) {
+                    minEstimate = estimate;
+                }
             }
         }
         return minEstimate;
@@ -102,31 +108,43 @@ public class TWODCM {
 
     }
 
-    public int queryMarginalCodomain(int condAttr, int[][] k) {
-        int[] predIdxs = new int[depth];
-        for (int j = 0; j < depth; j++) {
-            predIdxs[j] = k[j][condAttr];
+    public int queryMarginalCodomain(int condAttr, int[][] k, boolean hasLatent, int row) {
+        int[] predIdxs;
+        int[] rows;
+        if (hasLatent) {
+            predIdxs = new int[1];
+            predIdxs[0] = k[row][condAttr];
+            rows = new int[]{row};
+        } else {
+            predIdxs = new int[k.length];
+            rows = new int[k.length];
+            for (int j = 0; j < predIdxs.length; j++) {
+                predIdxs[j] = k[j][condAttr];
+                rows[j] = j;
+            }
         }
-        return marginal(predIdxs, condAttr);
+
+        return marginal(predIdxs, condAttr, rows);
     }
 
     public int queryMarginal(int predicate, int attr) {
         int[] predIdxs = getPredIdx(predicate, attr);
-        return marginal(predIdxs, attr);
+        int[] rows = IntStream.range(0, predIdxs.length).toArray();
+        return marginal(predIdxs, attr, rows);
     }
 
-    int marginal(int[] predIdxs, int attr) {
+    int marginal(int[] predIdxs, int attr, int[] rows) {
         int minEstimate = Integer.MAX_VALUE;
-        for (int j = 0; j < depth; j++) {
+        for (int j = 0; j < predIdxs.length; j++) {
             int sumRowEst = 0;
             int predIdx = predIdxs[j];
             if (attrS == attr) {
                 for (int i = 0; i < width; i++) {
-                    sumRowEst += CM[j][predIdx][i];
+                    sumRowEst += CM[rows[j]][predIdx][i];
                 }
             } else {
                 for (int i = 0; i < width; i++) {
-                    sumRowEst += CM[j][i][predIdx];
+                    sumRowEst += CM[rows[j]][i][predIdx];
                 }
             }
             if (minEstimate > sumRowEst) {

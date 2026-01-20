@@ -30,7 +30,7 @@ import org.utils.Record;
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         String jsonFilePath = args[0];
         ObjectMapper mapper = new ObjectMapper();
         Config config = mapper.readValue(new File(jsonFilePath), Config.class);
