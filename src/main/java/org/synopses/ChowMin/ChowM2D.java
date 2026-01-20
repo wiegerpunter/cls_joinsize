@@ -1,6 +1,5 @@
 package org.synopses.ChowMin;
 
-import org.checkerframework.checker.units.qual.A;
 import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
 
@@ -104,7 +103,7 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
     private HashSet<Integer> getAttrsInPath(List<Edge> f) {
-        HashSet<Integer> attrs= new HashSet<Integer>();
+        HashSet<Integer> attrs= new HashSet<Integer>(f.size());
         for (Edge edge : f){
             attrs.add(edge.getS());
             attrs.add(edge.getT());
@@ -133,7 +132,7 @@ public class ChowM2D extends AbstractSynopsis {
     }
 
 
-    int queryMarginalCodomain(int[][] k, int condAttr, boolean hasLatent, int row) {
+    int queryMarginalCodomain(int condAttr, int[][] k,  boolean hasLatent, int row) {
         Edge e = getEdge(condAttr);
         return scheme.get(e).queryMarginalCodomain(condAttr, k, hasLatent, row);
     }
@@ -158,11 +157,23 @@ public class ChowM2D extends AbstractSynopsis {
         constructDimensions(record, attrsInPath, latentAttrs);
         int numDimensions = attributeDimensions.size();
         int[] indices = new int[numDimensions];
-        for (int row = 0; row < d; row++) {
-            double sum = 0;
-            while (true) {
-                int[][] k = new int[d][numAttributes];
+        if (latentAttrs.isEmpty()) {
+            minEstimate = pathQuery(0, numDimensions, indices, latentAttrs, f);
+        } else {
+            for (int row = 0; row < d; row++) {
+                int estimate = pathQuery(row, numDimensions, indices, latentAttrs, f);
+                if (estimate < minEstimate) {
+                    minEstimate = estimate;
+                }
+            }
+        }
+        return minEstimate;
+    }
 
+    private int pathQuery(int row, int numDimensions, int[] indices, Set<Integer> latentAttrs, List<Edge> f) {
+        double sum = 0;
+        int[][] k = new int[d][numAttributes];
+        while (true) {
             for (int i = 0; i < numDimensions; i++) {
                 AttributeDimension dim = attributeDimensions.get(i);
                 int codomainIndex = indices[i];
@@ -171,50 +182,42 @@ public class ChowM2D extends AbstractSynopsis {
                 }
             }
 
-                double product_p = 0;
-                for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
-                    Edge edge = f.get(cl_idx);
-                    if (edge.getS() == edge.getT()) {
-                        if (latentAttrs.contains(edge.getS())) {
-                            throw new RuntimeException("Latent attribute is root");
-                        }
-                        Edge edgeOfRoot = getEdge(edge.getS());
-                        product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k, false, row) / N;
-                    } else {
-                        boolean hasLatent = edgeHasLatent(edge, latentAttrs);
-                        double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
-                        int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
-                        double denominator = (double) queryMarginalCodomain(k, condAttr, latentAttrs.contains(condAttr), row) / N;
-                        product_p *= jointFreq / denominator;
+            double product_p = 0;
+            for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
+                Edge edge = f.get(cl_idx);
+                if (edge.getS() == edge.getT()) {
+                    if (latentAttrs.contains(edge.getS())) {
+                        throw new RuntimeException("Latent attribute is root");
                     }
-                }
-                if (product_p > 0) {
-                    sum += product_p;
-                }
-
-                int pos = numDimensions - 1;
-                while (pos >= 0) {
-                    indices[pos]++;
-                    if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
-                        break;
-                    }
-                    indices[pos] = 0;
-                    pos--;
-                }
-
-                if (pos < 0) {
-                    break; // all combinations exhausted
+                    Edge edgeOfRoot = getEdge(edge.getS());
+                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k, false, row) / N;
+                } else {
+                    boolean hasLatent = edgeHasLatent(edge, latentAttrs);
+                    double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
+                    int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
+                    double denominator = (double) queryMarginalCodomain( condAttr, k, latentAttrs.contains(condAttr), row) / N;
+                    product_p *= jointFreq / denominator;
                 }
             }
-            int estimate = (int) (N * sum);
-            if (estimate < minEstimate) {
-                minEstimate = estimate;
+            if (product_p > 0) {
+                sum += product_p;
             }
-            if (minEstimate == Integer.MAX_VALUE) {
-                throw new RuntimeException("Estimate max integer");
+
+            int pos = numDimensions - 1;
+            while (pos >= 0) {
+                indices[pos]++;
+                if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
+                    break;
+                }
+                indices[pos] = 0;
+                pos--;
+            }
+
+            if (pos < 0) {
+                break; // all combinations exhausted
             }
         }
-        return minEstimate;
+        return (int) (N * sum);
     }
 
     private boolean edgeHasLatent(Edge edge, Set<Integer> latentAttrs) {
@@ -376,10 +379,13 @@ public class ChowM2D extends AbstractSynopsis {
         int d = 3;
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes - 1;
-        int w = ram / (d * numCMs * 4);
-        System.out.println("Chow M2D has parameters d: " + d + " w: " +(int) Math.sqrt(w));
+        int cells = ram / 4;
+        int perCM = cells / (d * numCMs);
+        int width = (int) Math.sqrt(perCM);
+        width = Integer.highestOneBit(width);
+        System.out.println("Chow M2D has parameters d: " + d + " w: " +width);
 
-        return new int[]{d,(int) Math.sqrt(w)};
+        return new int[]{d,width};
     }
 
     private int getRoot(Set<Integer> subtree) {

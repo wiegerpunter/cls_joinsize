@@ -6,6 +6,7 @@ public class ResultRow {
     int ram;
     double error;
     double absError;
+    double relError;
     int ingestTime;
     int queryTime;
 }

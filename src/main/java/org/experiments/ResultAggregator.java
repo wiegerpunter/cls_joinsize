@@ -34,7 +34,7 @@ public class ResultAggregator {
     }
 
     static class Agg {
-        double errorSum, absErrorSum;
+        double errorSum, absErrorSum, relErrorSum;
         int ingestSum, querySum;
         int count;
     }
@@ -52,14 +52,17 @@ public class ResultAggregator {
             int queryTime = Integer.parseInt(f[5]);
             double error = Double.parseDouble(f[8]);
             double absError = Double.parseDouble(f[9]);
+            double relError = Double.parseDouble(f[10]);
             int ram = Integer.parseInt(f[13]);
+            int memUsage = Integer.parseInt(f[2]);
 
-            Key key = new Key(setting, numLatentAttrs, ram);
+            Key key = new Key(setting, numLatentAttrs, memUsage);
             map.computeIfAbsent(key, k -> new Agg());
 
             Agg a = map.get(key);
             a.errorSum += error;
             a.absErrorSum += absError;
+            a.relErrorSum += relError;
             a.ingestSum += ingestTime;
             a.querySum += queryTime;
             a.count++;

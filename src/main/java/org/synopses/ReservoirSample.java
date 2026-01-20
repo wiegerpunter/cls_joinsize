@@ -3,8 +3,8 @@ package org.synopses;
 import java.util.Random;
 
 public class ReservoirSample extends AbstractSynopsis{
-    private int[][] reservoir;
-    private int size;
+    private final int[][] reservoir;
+    private final int size;
     private int count;
     Random rn;
 

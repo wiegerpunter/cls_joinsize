@@ -11,8 +11,7 @@ public class Edge {
     public boolean equals(Object obj) {
         if (this == obj) return true; // same object
         if (!(obj instanceof Edge other)) return false;
-        if (this.s == other.s && this.t == other.t) return true;
-        return false;
+        return this.s == other.s && this.t == other.t;
     }
 
     @Override

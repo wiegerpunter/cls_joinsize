@@ -8,7 +8,7 @@ public class DatasetBuilder {
 
     public static XYDataset buildDataset(
             Map<ResultAggregator.Key, ResultAggregator.Agg> data,
-            String metric // "error", "absError", "ingestTime", "queryTime"
+            String metric // "error", "absError", "relError", "ingestTime", "queryTime"
     ) {
         XYSeriesCollection dataset = new XYSeriesCollection();
         Map<String, XYSeries> seriesMap = new HashMap<>();
@@ -23,6 +23,7 @@ public class DatasetBuilder {
             double y = switch (metric) {
                 case "error" -> agg.errorSum / agg.count;
                 case "absError" -> agg.absErrorSum / agg.count;
+                case "relError" -> agg.relErrorSum / agg.count;
                 case "ingestTime" -> agg.ingestSum / (double) agg.count;
                 case "queryTime" -> agg.querySum / (double) agg.count;
                 default -> throw new IllegalArgumentException();

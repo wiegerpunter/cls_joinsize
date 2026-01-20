@@ -120,7 +120,6 @@ public class ChowM2DTest {
            c.constructDimensions(record, attrsInPath, latentAttrs);
            int numDimensions = c.attributeDimensions.size();
            int[] indices = new int[numDimensions];
-           double sum = 0;
            while (true) {
                int[][] k = new int[c.getd()][c.numAttributes];
 
@@ -142,7 +141,7 @@ public class ChowM2DTest {
                int pos = numDimensions - 1;
                while (pos >= 0) {
                    indices[pos]++;
-                   if (indices[pos] < c.attributeDimensions.get(pos).codomainSize) { //todo: again link to attribute
+                   if (indices[pos] < c.attributeDimensions.get(pos).codomainSize) {
                        break;
                    }
                    indices[pos] = 0;

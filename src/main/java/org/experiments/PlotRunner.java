@@ -29,5 +29,11 @@ public class PlotRunner {
                 "Query Time vs RAM",
                 "Avg Query Time (ms)"
         );
+
+        PlotUtil.plot(
+                DatasetBuilder.buildDataset(data, "relError"),
+                "Relative Error vs RAM",
+                "Relative Error"
+        );
     }
 }
