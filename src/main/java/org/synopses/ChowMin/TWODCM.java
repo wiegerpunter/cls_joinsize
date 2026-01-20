@@ -7,7 +7,8 @@ import org.utils.Edge;
 import java.util.stream.IntStream;
 
 public class TWODCM {
-    public int[][][] CM;
+//    public int[][][] CM;
+    public int[] CMR;
     private final int depth;
     private final int width;
     int attrS; int attrT;
@@ -16,7 +17,8 @@ public class TWODCM {
 
     int[] reusableHashesS;
     int[] reusableHashesT;
-
+    int[] seedsS;
+    int[] seedsT;
 
     public TWODCM(int depth, int width, Edge edge) {
         this.depth = depth;
@@ -24,45 +26,86 @@ public class TWODCM {
         this.attrS = edge.getS();
         this.attrT = edge.getT();
 
-        CM = new int[depth][width][width];
-        for (int i = 0; i < depth; i++) {
-            for (int j = 0; j < width; j++) {
-                for  (int k = 0; k < width; k++) {
-                    CM[i][j][k] =0;
-                }
-            }
-        }
-        xxS = new HashFunction[depth];
-        xxT = new HashFunction[depth];
+        seedsS = new int[depth];
+        seedsT = new int[depth];
 
-        for (int i = 0; i < depth; i++) {
-            xxS[i] = Hashing.murmur3_32_fixed(i + attrS);
-            xxT[i] = Hashing.murmur3_32_fixed(i + attrT);
-
+        for (int j = 0; j < seedsS.length; j++) {
+            seedsS[j] = j + attrS;
+            seedsT[j] = j + attrT;
         }
+
+
+//        CM = new int[depth][width][width];
+        CMR = new int[depth * width * width];
+//        for (int i = 0; i < depth; i++) {
+//            for (int j = 0; j < width; j++) {
+//                for  (int k = 0; k < width; k++) {
+//                    CM[i][j][k] =0;
+//                }
+//            }
+//        }
+//        xxS = new HashFunction[depth];
+//        xxT = new HashFunction[depth];
+
+//        for (int i = 0; i < depth; i++) {
+//            xxS[i] = Hashing.murmur3_32_fixed(i + attrS);
+//            xxT[i] = Hashing.murmur3_32_fixed(i + attrT);
+//
+//        }
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
 
     public void add(int e1, int e2) {
-        computeHashes(xxS, e1, reusableHashesS);
-        computeHashes(xxT, e2, reusableHashesT);
+//        computeHashes(xxS, e1, reusableHashesS);
+//        computeHashes(xxT, e2, reusableHashesT);
+        computeHashes(e1, reusableHashesS);
+        computeHashes(e2, reusableHashesT);
 
         for (int j = 0; j < depth; j++) {
-            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
+//            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
+            CMR[idx(j, reusableHashesS[j], reusableHashesT[j])] += 1;
         }
     }
 
     public int query(int e1, int e2) {
-        computeHashes(xxS, e1, reusableHashesS);
-        computeHashes(xxT, e2, reusableHashesT);
+//        computeHashes(xxS, e1, reusableHashesS);
+//        computeHashes(xxT, e2, reusableHashesT);
+
+        computeHashes(e1, reusableHashesS);
+        computeHashes(e2, reusableHashesT);
         int minEstimate = Integer.MAX_VALUE;
         for (int i = 0; i < depth; i++) {
-            if (CM[i][reusableHashesS[i]][reusableHashesT[i]] < minEstimate) {
-                minEstimate = CM[i][reusableHashesS[i]][reusableHashesT[i]];
+//            if (CM[i][reusableHashesS[i]][reusableHashesT[i]] < minEstimate) {
+//                minEstimate = CM[i][reusableHashesS[i]][reusableHashesT[i]];
+//            }
+            if (CMR[idx(i, reusableHashesS[i], reusableHashesT[i])] < minEstimate) {
+                minEstimate = CMR[idx(i, reusableHashesS[i], reusableHashesT[i])];
             }
         }
         return minEstimate;
+    }
+
+    static int mix(int x, int seed) {
+        x ^= seed;
+        x *= 0x85ebca6b;
+        x ^= x >>> 13;
+        x *= 0xc2b2ae35;
+        return x ^ (x >>> 16);
+    }
+
+    public void computeHashes(int attrValue, int[] hashes) {
+        final int mask = width - 1;
+        if (attrValue== attrS) {
+            for (int i = 0; i < depth; i++) {
+                hashes[i] = mix(attrValue, seedsS[i]) & mask;
+            }
+        } else {
+
+            for (int i = 0; i < depth; i++) {
+                hashes[i] = mix(attrValue, seedsT[i]) & mask;
+            }
+        }
     }
 
     public void computeHashes(HashFunction[] hashFunctions, int attrValue, int[] hashes) {
@@ -85,10 +128,12 @@ public class TWODCM {
     public int queryCodomain(int[][] k, Edge edge, boolean hasLatent, int row) {
         int minEstimate = Integer.MAX_VALUE;
         if (hasLatent) {
-            return CM[row][k[row][edge.getS()]][k[row][edge.getT()]];
+            return CMR[idx(row, k[row][edge.getS()], k[row][edge.getT()])];
+//            return CM[row][k[row][edge.getS()]][k[row][edge.getT()]];
         } else {
             for (int j = 0; j < k.length; j++) {
-                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
+//                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
+                int estimate = CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])];
                 if (minEstimate > estimate) {
                     minEstimate = estimate;
                 }
@@ -99,10 +144,13 @@ public class TWODCM {
 
     public int[] getCodomain(int attr, int predicate) {
         if (attr == attrS) {
-            computeHashes(xxS, predicate, reusableHashesS);
+//            computeHashes(xxS, predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS);
+
             return reusableHashesS;
         } else {
-            computeHashes(xxT, predicate, reusableHashesT);
+            computeHashes(predicate, reusableHashesT);
+
             return reusableHashesT;
         }
 
@@ -140,11 +188,13 @@ public class TWODCM {
             int predIdx = predIdxs[j];
             if (attrS == attr) {
                 for (int i = 0; i < width; i++) {
-                    sumRowEst += CM[rows[j]][predIdx][i];
+//                    sumRowEst += CM[rows[j]][predIdx][i];
+                    sumRowEst+= CMR[idx(rows[j], predIdx, i)];
                 }
             } else {
                 for (int i = 0; i < width; i++) {
-                    sumRowEst += CM[rows[j]][i][predIdx];
+//                    sumRowEst += CM[rows[j]][i][predIdx];
+                    sumRowEst += CMR[idx(rows[j], i, predIdx)];
                 }
             }
             if (minEstimate > sumRowEst) {
@@ -156,11 +206,20 @@ public class TWODCM {
 
     int[] getPredIdx(int predicate, int attr) {
         if (attrS == attr) {
-            computeHashes(xxS, predicate, reusableHashesS);
+//            computeHashes(xxS, predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS);
+
             return reusableHashesS;
         } else {
-            computeHashes(xxT, predicate, reusableHashesT);
+            computeHashes(predicate, reusableHashesT);
+
+//            computeHashes(xxT, predicate, reusableHashesT);
             return reusableHashesT;
         }
     }
+
+    private int idx(int d, int x, int y) {
+        return d * (width * width) + x * width + y;
+    }
+
 }
