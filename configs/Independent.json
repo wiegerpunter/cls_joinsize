@@ -1,0 +1,11 @@
+{
+  "N": 10000000,
+  "numQueries": 1000,
+  "ramVals": [10000,50000,100000,500000],
+  "numAttributes": 10,
+  "maxNumPredicates": 10,
+  "modelType": "IndependentModel",
+  "dataDistribution": "Corr",
+  "statsData": false,
+  "printData": false
+}

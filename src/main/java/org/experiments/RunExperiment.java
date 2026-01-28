@@ -28,10 +28,10 @@ public class RunExperiment {
 //            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
 //            runSynopsis(naiveMin2D, data, queries, exactAnswer);
 
-            ChowM2D ChowLiuMin2D = new ChowM2D(config.cardinalities.length, ram, chowLiuTree);
+            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
             runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
 
-            ReservoirSample rs = new ReservoirSample(ram, config.cardinalities.length);
+            ReservoirSample rs = new ReservoirSample(ram, config.numAttributes);
             runSynopsis(rs,  data, queries, exactAnswer);
         }
 

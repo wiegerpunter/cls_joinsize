@@ -105,27 +105,50 @@ public class DataGenerator {
         }
     }
 
-    public void generatePairwiseQueries(int numQueries) {
+    public void generatePairwiseQueries(int numQueriesPerPredicateNumber, int numPredicates) {
 //        queries = new int[numQueries][numCols];
         ArrayList<int[]> potQueries = new ArrayList<>();
         int numQueriesGenerated = 0;
+        for (int p = 1; p <= numPredicates; p++) {
+            numQueriesGenerated += addPotQueries(p, numQueriesPerPredicateNumber, potQueries);
+        }
+        queries = new int[numQueriesGenerated][];
+        for (int i = 0; i < numQueriesGenerated; i++) {
+            queries[i] = potQueries.get(i);
+        }
 
-        Random random = new Random(1);
-        for (int i = 0; i < dataset.length; i++) {
-            if (i % 5 == 0 && numQueriesGenerated < numQueries) {
+        // exact answer:
+        exactAnswer = new int[queries.length];
+        for (int i = 0; i < queries.length; i++) {
+            for (int[] record : dataset) {
+                boolean found = true;
+                for (int k = 0; k < queries[i].length; k++) {
+                    if (queries[i][k] != -1 && queries[i][k] != record[k]) {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found) {
+                    exactAnswer[i] += 1;
+                }
+            }
+        }
+    }
+
+    private int addPotQueries(int p, int numQueries, ArrayList<int[]> potQueries) {
+        int numQueriesGenerated = 0;
+        Random r = new Random(p);
+        for (int[] ints : dataset) {
+            double chance = r.nextDouble(1);
+            if (chance < 0.2 && numQueriesGenerated < numQueries) {
                 // check if dataset[i] is in queries already, if so, skip:
-                ArrayList<Integer> predAttrs = new ArrayList<>();
-                predAttrs.add(random.nextInt(numCols));
-                int secAttr;
-                do {
-                    secAttr = random.nextInt(numCols);
-                } while (predAttrs.get(0) == secAttr);
-                predAttrs.add(secAttr);
-                // sort predAttrs
-                predAttrs.sort(Comparator.naturalOrder());
-                int[] query = new int[numQueries];
-                query = Arrays.copyOf(dataset[i], dataset[i].length);
-                // mask attributes
+                Set<Integer> predAttrs = new HashSet<>();
+                while (predAttrs.size() < p) {
+                    predAttrs.add(random.nextInt(numCols));
+                }
+                int[] query = Arrays.copyOf(ints, ints.length);
+
+                // mask non-predicates
                 for (int k = 0; k < query.length; k++) {
                     if (!predAttrs.contains(k)) {
                         query[k] = -1;
@@ -139,109 +162,87 @@ public class DataGenerator {
                     }
                 }
                 if (!alreadySeen) {
-                    // mask attributes
                     potQueries.add(query);
                     numQueriesGenerated++;
                 }
             }
         }
-        queries = new int[numQueriesGenerated][];
-        for (int i = 0; i < numQueriesGenerated; i++) {
-            queries[i] = potQueries.get(i);
-        }
+        return numQueriesGenerated;
 
-        // exact answer:
-        exactAnswer = new int[queries.length];
-        for (int i = 0; i < queries.length; i++) {
-            int[] query = queries[i];
-            for (int[] record : dataset) {
-                boolean found = true;
-                for (int k = 0; k < query.length; k++) {
-                    if (query[k] != -1) {
-                        if (query[k] != record[k]) {
-                            found = false;
-                            break;
-                        }
-                    }
-                }
-                if (found) {
-                    exactAnswer[i] += 1;
-                }
-            }
-        }
     }
-    public void generatePredQueries(int numQueries) {
+
+//    public void generatePredQueries(int numQueries) {
 //        queries = new int[numQueries][numCols];
-        ArrayList<int[]> potQueries = new ArrayList<>();
-        int numQueriesGenerated = 0;
-
-        Random random = new Random(1);
-        for (int i = 0; i < dataset.length; i++) {
-            if (i % 5 == 0 && numQueriesGenerated < numQueries) {
-                // check if dataset[i] is in queries already, if so, skip:
-                ArrayList<Integer> predAttrs = new ArrayList<>();
-                predAttrs.add(random.nextInt(numCols));
-                int secAttr;
-                do {
-                    secAttr = random.nextInt(numCols);
-                } while (predAttrs.get(0) == secAttr);
-                predAttrs.add(secAttr);
-
-                int thirdAttr;
-                do {
-                    thirdAttr = random.nextInt(numCols);
-                } while (predAttrs.get(0) == thirdAttr || predAttrs.get(1) == thirdAttr);
-                predAttrs.add(thirdAttr);
-                // sort predAttrs
-                predAttrs.sort(Comparator.naturalOrder());
-                int[] query = new int[numQueries];
-                query = Arrays.copyOf(dataset[i], dataset[i].length);
-                // mask attributes
-                for (int k = 0; k < query.length; k++) {
-                    if (!predAttrs.contains(k)) {
-                        query[k] = -1;
-                    }
-                }
-                boolean alreadySeen = false;
-                for (int[] row : potQueries) {
-                    if(Arrays.equals(query, row)) {
-                        alreadySeen = true;
-                        break;
-                    }
-                }
-                if (!alreadySeen) {
-                    // mask attributes
-                    potQueries.add(query);
-                    numQueriesGenerated++;
-                }
-            }
-        }
-
-        queries = new int[numQueriesGenerated][];
-        for (int i = 0; i < numQueriesGenerated; i++) {
-            queries[i] = potQueries.get(i);
-        }
-
-        // exact answer:
-        exactAnswer = new int[queries.length];
-        for (int i = 0; i < queries.length; i++) {
-            int[] query = queries[i];
-            for (int[] record : dataset) {
-                boolean found = true;
-                for (int k = 0; k < query.length; k++) {
-                    if (query[k] != -1) {
-                        if (query[k] != record[k]) {
-                            found = false;
-                            break;
-                        }
-                    }
-                }
-                if (found) {
-                    exactAnswer[i] += 1;
-                }
-            }
-        }
-    }
+//        ArrayList<int[]> potQueries = new ArrayList<>();
+//        int numQueriesGenerated = 0;
+//
+//        Random random = new Random(1);
+//        for (int i = 0; i < dataset.length; i++) {
+//            if (i % 5 == 0 && numQueriesGenerated < numQueries) {
+//                // check if dataset[i] is in queries already, if so, skip:
+//                ArrayList<Integer> predAttrs = new ArrayList<>();
+//                predAttrs.add(random.nextInt(numCols));
+//                int secAttr;
+//                do {
+//                    secAttr = random.nextInt(numCols);
+//                } while (predAttrs.get(0) == secAttr);
+//                predAttrs.add(secAttr);
+//
+//                int thirdAttr;
+//                do {
+//                    thirdAttr = random.nextInt(numCols);
+//                } while (predAttrs.get(0) == thirdAttr || predAttrs.get(1) == thirdAttr);
+//                predAttrs.add(thirdAttr);
+//                // sort predAttrs
+//                predAttrs.sort(Comparator.naturalOrder());
+//                int[] query = new int[numQueries];
+//                query = Arrays.copyOf(dataset[i], dataset[i].length);
+//                // mask attributes
+//                for (int k = 0; k < query.length; k++) {
+//                    if (!predAttrs.contains(k)) {
+//                        query[k] = -1;
+//                    }
+//                }
+//                boolean alreadySeen = false;
+//                for (int[] row : potQueries) {
+//                    if(Arrays.equals(query, row)) {
+//                        alreadySeen = true;
+//                        break;
+//                    }
+//                }
+//                if (!alreadySeen) {
+//                    // mask attributes
+//                    potQueries.add(query);
+//                    numQueriesGenerated++;
+//                }
+//            }
+//        }
+//
+//        queries = new int[numQueriesGenerated][];
+//        for (int i = 0; i < numQueriesGenerated; i++) {
+//            queries[i] = potQueries.get(i);
+//        }
+//
+//        // exact answer:
+//        exactAnswer = new int[queries.length];
+//        for (int i = 0; i < queries.length; i++) {
+//            int[] query = queries[i];
+//            for (int[] record : dataset) {
+//                boolean found = true;
+//                for (int k = 0; k < query.length; k++) {
+//                    if (query[k] != -1) {
+//                        if (query[k] != record[k]) {
+//                            found = false;
+//                            break;
+//                        }
+//                    }
+//                }
+//                if (found) {
+//                    exactAnswer[i] += 1;
+//                }
+//            }
+//        }
+//    }
 
     public int[] getExactAnswer() {
         return exactAnswer;
@@ -259,7 +260,7 @@ public class DataGenerator {
         }
 
         // Generate queries
-        this.generatePairwiseQueries(config.numQueries);
+        this.generatePairwiseQueries(config.numQueries, numCols);
 //        this.generatePredQueries(500);
 
         if (config.statsData) {

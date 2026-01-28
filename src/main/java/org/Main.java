@@ -15,6 +15,7 @@ import java.util.stream.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.dataset.DataGenerator;
+import org.dataset.DatasetGenerator;
 import org.experiments.RunExperiment;
 import org.synopses.*;
 import org.utils.Config;
@@ -35,11 +36,13 @@ public class Main {
         ObjectMapper mapper = new ObjectMapper();
         Config config = mapper.readValue(new File(jsonFilePath), Config.class);
 
-        DataGenerator generator = new DataGenerator(config.N, config.cardinalities);
-        generator.run(config);
-        int[][] data = generator.getDataset();
-        int[][] queries = generator.getQueries();
-        int[] exactAnswer = generator.getExactAnswer();
+//        DataGenerator generator = new DataGenerator(config.N, config.cardinalities);
+//        generator.run(config);
+        int[][] data = DatasetGenerator.getData(config.numAttributes, config.N, config.seed, config.modelType);
+//        int[][] data = generator.getDataset();
+        DatasetGenerator.Queries Q= DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates, data);
+        int[][] queries = Q.getQueries();
+        int[] exactAnswer = Q.getExactAnswer();
         List<Edge> chowLiuTree = computeExactMutualInformation(data);
 
         RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, chowLiuTree);

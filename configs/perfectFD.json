@@ -1,0 +1,9 @@
+{
+  "N": 1000000,
+  "numQueries": 1000,
+  "ramVals": [10000,50000,100000,500000],
+  "cardinalities": [1000,1000,1000,1000],
+  "dataDistribution": "PerfectFD",
+  "statsData": false,
+  "printData": false
+}

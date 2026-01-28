@@ -194,7 +194,7 @@ public class ChowM2D extends AbstractSynopsis {
                 } else {
                     boolean hasLatent = edgeHasLatent(edge, latentAttrs);
                     double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
-                    int condAttr = getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
+                    int condAttr = edge.getS();//getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
                     double denominator = (double) queryMarginalCodomain( condAttr, k, latentAttrs.contains(condAttr), row) / N;
                     product_p *= jointFreq / denominator;
                 }
@@ -397,18 +397,17 @@ public class ChowM2D extends AbstractSynopsis {
         }
 
         for (Integer i: subtree) {
-            boolean leafInSubtree = true;
+            int numInSubtree = 0;
             for (int j: adjMatrix.get(i)) {
                 if (subtree.contains(j)){
-                    leafInSubtree = false;
-                    break;
+                    numInSubtree++;
                 }
             }
-            if (leafInSubtree) {
+            if (numInSubtree == 1) {
                 return i;
             }
         }
-        throw new RuntimeException("Can't find root node for " + adjMatrix);
+        throw new RuntimeException("Can't find root node for " + adjMatrix + ", subtree: " + subtree);
     }
     public int getd() {
         return d;
