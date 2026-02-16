@@ -35,10 +35,10 @@ public class Main {
         String jsonFilePath = args[0];
         ObjectMapper mapper = new ObjectMapper();
         Config config = mapper.readValue(new File(jsonFilePath), Config.class);
-
+        config.setClusters();
 //        DataGenerator generator = new DataGenerator(config.N, config.cardinalities);
 //        generator.run(config);
-        int[][] data = DatasetGenerator.getData(config.numAttributes, config.N, config.seed, config.modelType);
+        int[][] data = DatasetGenerator.getData(config);
 //        int[][] data = generator.getDataset();
         DatasetGenerator.Queries Q= DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates, data);
         int[][] queries = Q.getQueries();

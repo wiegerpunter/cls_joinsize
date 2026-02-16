@@ -2,6 +2,7 @@ package org.dataset;
 
 import org.dataset.DependencyModels.*;
 import org.dataset.Distributions.ZipfDistribution;
+import org.utils.Config;
 
 import java.util.*;
 import java.util.stream.IntStream;
@@ -33,29 +34,27 @@ public class DatasetGenerator {
         return 1000 + rng.nextInt(9000);
     }
 
-    public static int[][] getData(int numAttrs, int N, int seed, String modelType) {
-        Random rng = new Random(seed);
+    public static int[][] getData(Config config) {
+        Random rng = new Random(config.seed);
 
-        Attribute[] attrs = new Attribute[numAttrs];
-        for (int i = 0; i < numAttrs; i++) {
+        Attribute[] attrs = new Attribute[config.numAttributes];
+        for (int i = 0; i < config.numAttributes; i++) {
             int k = sampleCardinality(rng);
-            attrs[i] = new Attribute(i, k, new ZipfDistribution(k, 1.2));
+            attrs[i] = new Attribute(i, k, new ZipfDistribution(k, 1.5));
         }
 
-        int[][] clusters = { {0,1,2}, {4,5} };
-
         DependencyModel model;
-        switch (modelType) {
+        switch (config.modelType) {
             case "IndependentModel" -> model = new IndependentModel(attrs);
-            case "ClusteredModel" -> model = new ClusteredModel(attrs, clusters, 0.15);
+            case "ClusteredModel" -> model = new ClusteredModel(attrs, config.clusters, config.clusterNoise);
             case "FunctionalDependencyModel" -> model = new FunctionalDependencyModel(attrs, 0,
                     IntStream.range(1,attrs.length).toArray());
-            case "LatentFactorModel" -> model = new LatentFactorModel(attrs, 10, 0.5);
+            case "LatentFactorModel" -> model = new LatentFactorModel(attrs, config.latentCard, config.latentInfl);
             default -> throw new RuntimeException("Model type not found.");
         } 
 
         DatasetGenerator gen =
-                new DatasetGenerator(model, numAttrs, N);
+                new DatasetGenerator(model, config.numAttributes, config.N);
 
         return gen.generate(rng);
     }

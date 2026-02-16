@@ -21,4 +21,6 @@ public abstract class AbstractSynopsis {
     public abstract int getw();
 
     public abstract int numLatent(int[] query);
+
+    public abstract int getNumSamples();
 }

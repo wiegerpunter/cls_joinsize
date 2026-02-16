@@ -11,4 +11,26 @@ public class Config {
     public String dataDistribution;
     public boolean statsData;
     public boolean printData;
+    public int numClusters;
+    public int[][] clusters;
+    public double clusterNoise;
+    public double latentInfl;
+    public int latentCard;
+
+    public void setClusters() {
+        clusters = new int[numClusters][];
+        if (!modelType.equals("ClusteredModel")) {
+            return;
+        }
+        int numAttrsPerCluster = Math.max(1, (int) Math.floor((double) (numAttributes - numClusters) /numClusters));
+        int curAttrs = 0;
+        for (int i = 0; i < numClusters; i++) {
+            clusters[i] = new int[numAttrsPerCluster];
+            for (int j = 0; j < numAttrsPerCluster; j++) {
+                clusters[i][j] = curAttrs;
+                curAttrs++;
+            }
+            curAttrs++;
+        }
+    }
 }

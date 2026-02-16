@@ -45,8 +45,7 @@ public class ChowLiu {
      * @param MI symmetric matrix of mutual information.
      * @return list of edges (u,v) in the Chow–Liu tree.
      */
-    public static List<Edge> chowLiu(double[][] MI) {
-        int n = MI.length;
+    public static List<Edge> chowLiu(double[][] MI, int numAttributes) {
         List<EdgeWithWeight> edges = new ArrayList<>();
 
         for (double[] doubles : MI) {
@@ -55,13 +54,13 @@ public class ChowLiu {
         // sort by descending MI
         edges.sort((a, b) -> Double.compare(b.weight, a.weight));
 
-        DSU dsu = new DSU(n);
+        DSU dsu = new DSU(numAttributes);
         List<Edge> tree = new ArrayList<>();
 
         for (EdgeWithWeight e : edges) {
             if (dsu.union(e.u, e.v)) {
                 tree.add(new  Edge(e.u, e.v));
-                if (tree.size() == n - 1) break;
+                if (tree.size() == numAttributes - 1) break;
             }
         }
         return tree;
@@ -87,7 +86,7 @@ public class ChowLiu {
             System.out.println("MI " + MIs[i][0] + " , " + MIs[i][1] +" = " + MIs[i][2]);
         }
 
-        List<Edge> chowLiuTree = chowLiu(MIs);
+        List<Edge> chowLiuTree = chowLiu(MIs, data[0].length);
         for (Edge e : chowLiuTree) {
             System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
         }
@@ -134,7 +133,7 @@ public class ChowLiu {
                 {2.70838433, 0.39246054, 0.75886671, 0}
         };
 
-        List<Edge> tree = chowLiu(MI);
+        List<Edge> tree = chowLiu(MI, 4);
         for (Edge e : tree) {
             System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
         }

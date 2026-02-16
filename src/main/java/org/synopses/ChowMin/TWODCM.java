@@ -1,7 +1,6 @@
 package org.synopses.ChowMin;
 
 import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 import org.utils.Edge;
 
 import java.util.stream.IntStream;
@@ -52,6 +51,23 @@ public class TWODCM {
 //            xxT[i] = Hashing.murmur3_32_fixed(i + attrT);
 //
 //        }
+        reusableHashesS = new int[depth];
+        reusableHashesT = new int[depth];
+    }
+    public TWODCM(int depth, int width, int s, int t) {
+        this.depth = depth;
+        this.width = width;
+        this.attrS = s;
+        this.attrT = t;
+
+        seedsS = new int[depth];
+        seedsT = new int[depth];
+
+        for (int j = 0; j < seedsS.length; j++) {
+            seedsS[j] = j + attrS;
+            seedsT[j] = j + attrT;
+        }
+        CMR = new int[depth * width * width];
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
@@ -142,6 +158,18 @@ public class TWODCM {
         return minEstimate;
     }
 
+    public int queryCodomainWOLatent(int[][] k, Edge edge) {
+        int minEstimate = Integer.MAX_VALUE;
+        for (int j = 0; j < k.length; j++) {
+//                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
+                int estimate = CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])];
+                if (minEstimate > estimate) {
+                    minEstimate = estimate;
+                }
+        }
+        return minEstimate;
+    }
+
     public int[] getCodomain(int attr, int predicate) {
         if (attr == attrS) {
 //            computeHashes(xxS, predicate, reusableHashesS);
@@ -175,6 +203,19 @@ public class TWODCM {
         return marginal(predIdxs, condAttr, rows);
     }
 
+    public int queryMarginalCodomainWOLatent(int condAttr, int[][] k) {
+        int[] predIdxs;
+        int[] rows;
+        predIdxs = new int[k.length];
+        rows = new int[k.length];
+        for (int j = 0; j < predIdxs.length; j++) {
+            predIdxs[j] = k[j][condAttr];
+            rows[j] = j;
+        }
+
+        return marginal(predIdxs, condAttr, rows);
+    }
+
     public int queryMarginal(int predicate, int attr) {
         int[] predIdxs = getPredIdx(predicate, attr);
         int[] rows = IntStream.range(0, predIdxs.length).toArray();
@@ -184,7 +225,7 @@ public class TWODCM {
     int marginal(int[] predIdxs, int attr, int[] rows) {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < predIdxs.length; j++) {
-            int sumRowEst = 0;
+            int sumRowEst=0;
             int predIdx = predIdxs[j];
             if (attrS == attr) {
                 for (int i = 0; i < width; i++) {
@@ -218,8 +259,12 @@ public class TWODCM {
         }
     }
 
-    private int idx(int d, int x, int y) {
-        return d * (width * width) + x * width + y;
+    public int idx(int d, int x, int y) {
+        return d * (width * width) + x * (width) + y;
+    }
+
+    private int idx_copy(int d, int x, int y) {
+        return d * (width * width) + x * (width) + y;
     }
 
 }

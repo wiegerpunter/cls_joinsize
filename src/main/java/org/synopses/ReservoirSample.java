@@ -8,22 +8,22 @@ public class ReservoirSample extends AbstractSynopsis{
     private int count;
     Random rn;
 
-    public ReservoirSample(int ram, int numAttributes) {
+    public ReservoirSample(int ram, int numAttributes, int seed) {
         setting = "Reservoir Sample";
         this.ram = ram;
         this.size = ram / (4 * numAttributes);
         this.count = 0;
-        rn = new Random(0);
+        rn = new Random(seed);
         reservoir = new int[size][numAttributes];
     }
 
     public void add(int[] rec) {
         if (count < size){
-            reservoir[count] = rec;
+            reservoir[count] = rec.clone();
         } else{
             int replace = rn.nextInt(count + 1);
             if (replace < size) {
-                reservoir[replace] = rec;
+                reservoir[replace] = rec.clone();
             }
         }
         count++;
@@ -48,7 +48,7 @@ public class ReservoirSample extends AbstractSynopsis{
     }
 
     public int memoryUsage() {
-        int ram = 0;
+        int ram;
         ram = size * reservoir[0].length * 4;
         return ram;
     }
@@ -61,6 +61,10 @@ public class ReservoirSample extends AbstractSynopsis{
     @Override
     public int getw() {
         return 0;
+    }
+    @Override
+    public int getNumSamples() {
+        return size;
     }
 
     @Override

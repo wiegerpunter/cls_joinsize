@@ -28,7 +28,7 @@ public class CM2D extends AbstractSynopsis {
         this.numAttributes = numAttributes;
         singleCMs = new CountMin[numAttributes];
         for (int i = 0; i < singleCMs.length; i++) {
-            singleCMs[i] = new CountMin(d, w);
+            singleCMs[i] = new CountMin(d, w, i);
         }
         doubleCMs = new TWODCM[(numAttributes*numAttributes - numAttributes)/2];
         for (int i = 0; i < doubleCMs.length; i++) {
@@ -71,6 +71,11 @@ public class CM2D extends AbstractSynopsis {
 
     @Override
     public int numLatent(int[] query) {
+        return 0;
+    }
+
+    @Override
+    public int getNumSamples() {
         return 0;
     }
 

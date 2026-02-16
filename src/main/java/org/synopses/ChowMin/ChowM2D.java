@@ -92,6 +92,11 @@ public class ChowM2D extends AbstractSynopsis {
         }
     }
 
+    @Override
+    public int getNumSamples() {
+        return 0;
+    }
+
     private void checkActive(ArrayList<Integer> active, ArrayList<Integer> notActive, int[] record) {
         for (int i = 0; i < record.length; i++) {
             if (record[i] != -1) {
@@ -183,19 +188,19 @@ public class ChowM2D extends AbstractSynopsis {
             }
 
             double product_p = 0;
-            for (int cl_idx = 0; cl_idx < f.size(); cl_idx++) {
-                Edge edge = f.get(cl_idx);
-                if (edge.getS() == edge.getT()) {
-                    if (latentAttrs.contains(edge.getS())) {
-                        throw new RuntimeException("Latent attribute is root");
-                    }
-                    Edge edgeOfRoot = getEdge(edge.getS());
-                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(edge.getS(), k, false, row) / N;
+            for (Edge edge : f) {
+                int s = edge.getS();
+                int t = edge.getT();
+                if (s == t) {
+//                    if (latentAttrs.contains(s)) {
+//                        throw new RuntimeException("Latent attribute is root");
+//                    }
+                    Edge edgeOfRoot = getEdge(s);
+                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(s, k, false, row) / N;
                 } else {
                     boolean hasLatent = edgeHasLatent(edge, latentAttrs);
                     double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
-                    int condAttr = edge.getS();//getCondAttr(edge.getS(), edge.getT(), f.get(cl_idx - 1));
-                    double denominator = (double) queryMarginalCodomain( condAttr, k, latentAttrs.contains(condAttr), row) / N;
+                    double denominator = (double) queryMarginalCodomain(s, k, latentAttrs.contains(s), row) / N;
                     product_p *= jointFreq / denominator;
                 }
             }
@@ -378,7 +383,7 @@ public class ChowM2D extends AbstractSynopsis {
     private int[] getParams(int ram, int numAttributes) {
         int d = 3;
         // number of CMs needed: numAttributes + numAttributes - 1
-        int numCMs = numAttributes - 1;
+        int numCMs = Math.max(numAttributes - 1, 1);
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);

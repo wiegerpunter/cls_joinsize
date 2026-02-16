@@ -7,10 +7,11 @@ public class CountMin {
     private final int[][] CM;
     private final int depth;
     private final int width;
+    private int[] seeds;
     HashFunction[] xx;
     int[] reusableHashes;
 
-    public CountMin(int depth, int width) {
+    public CountMin(int depth, int width, int attribute) {
         this.depth = depth;
         this.width = width;
         CM = new int[depth][width];
@@ -19,6 +20,11 @@ public class CountMin {
                 CM[i][j] = 0;
             }
         }
+//        seeds = new int[depth];
+//
+//        for (int j = 0; j < seeds.length; j++) {
+//            seeds[j] = j;
+//        }
         xx = new HashFunction[depth];
         for (int i = 0; i < depth; i++) {
             xx[i] = Hashing.murmur3_32_fixed(i + 1);
@@ -29,20 +35,24 @@ public class CountMin {
     public void add(int attrValue) {
 
         computeHashes(xx, attrValue, depth, width, reusableHashes);
+//        computeHashes(attrValue, reusableHashes);
         for (int j = 0; j < depth; j++) {
             CM[j][reusableHashes[j]] += 1;
         }
     }
     public void add(int e1, int e2) {
-        long compositeHash = ((long) e1 << 32) | (e2 & 0xFFFFFFFFL);
-        computeHashesLong(xx, compositeHash, depth, width, reusableHashes);
-        for (int j = 0; j < depth; j++) {
-            CM[j][reusableHashes[j]] += 1;
-        }
+        throw new RuntimeException("should not be called now");
+//        long compositeHash = ((long) e1 << 32) | (e2 & 0xFFFFFFFFL);
+//        computeHashesLong(xx, compositeHash, depth, width, reusableHashes);
+//
+//        for (int j = 0; j < depth; j++) {
+//            CM[j][reusableHashes[j]] += 1;
+//        }
     }
 
     public int query(int attrValue) {
         computeHashes(xx, attrValue, depth, width, reusableHashes);
+//        computeHashes(attrValue, reusableHashes);
         int minEstimate = Integer.MAX_VALUE;
         for (int i = 0; i < depth; i++) {
             if (CM[i][reusableHashes[i]] < minEstimate) {
@@ -52,15 +62,16 @@ public class CountMin {
         return minEstimate;
     }
     public int query(int e1, int e2) {
-        long compositeHash = ((long) e1 << 32) | (e2 & 0xFFFFFFFFL);
-        computeHashesLong(xx, compositeHash, depth, width, reusableHashes);
-        int minEstimate = Integer.MAX_VALUE;
-        for (int i = 0; i < depth; i++) {
-            if (CM[i][reusableHashes[i]] < minEstimate) {
-                minEstimate = CM[i][reusableHashes[i]];
-            }
-        }
-        return minEstimate;
+        throw new RuntimeException("Shou;d not be called now");
+//        long compositeHash = ((long) e1 << 32) | (e2 & 0xFFFFFFFFL);
+//        computeHashesLong(xx, compositeHash, depth, width, reusableHashes);
+//        int minEstimate = Integer.MAX_VALUE;
+//        for (int i = 0; i < depth; i++) {
+//            if (CM[i][reusableHashes[i]] < minEstimate) {
+//                minEstimate = CM[i][reusableHashes[i]];
+//            }
+//        }
+//        return minEstimate;
     }
 
     public double queryCell(int row, int column) {
@@ -68,6 +79,20 @@ public class CountMin {
     }
 
 
+    public void computeHashes(int attrValue, int[] hashes) {
+        final int mask = width - 1;
+        for (int i = 0; i < depth; i++) {
+            hashes[i] = mix(attrValue, seeds[i]) & mask;
+        }
+
+    }
+    static int mix(int x, int seed) {
+        x ^= seed;
+        x *= 0x85ebca6b;
+        x ^= x >>> 13;
+        x *= 0xc2b2ae35;
+        return x ^ (x >>> 16);
+    }
     public static void computeHashes(HashFunction[] hashFunctions, int attrValue, int depth, int width, int[] hashes) {
         for (int i = 0; i < depth; i++) {
             int hash = hashFunctions[i].hashInt(attrValue).asInt();
@@ -89,5 +114,7 @@ public class CountMin {
     public int memory() {
         return depth  * width * 4;
     }
+
+
 
 }

@@ -4,6 +4,8 @@ import com.opencsv.CSVWriter;
 import org.jfree.chart.plot.Plot;
 import org.synopses.*;
 import org.synopses.ChowMin.ChowM2D;
+import org.synopses.ChowMin.ChowMinAllPairs;
+import org.synopses.ChowMin.ChowMinCountSketchAllPairs;
 import org.utils.Config;
 import org.utils.Edge;
 
@@ -27,11 +29,22 @@ public class RunExperiment {
 //
 //            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
 //            runSynopsis(naiveMin2D, data, queries, exactAnswer);
+            if (config.maxNumPredicates == 1) {
+                SingleCountMins cm = new SingleCountMins(config.numAttributes, ram);
+                runSynopsis(cm, data, queries, exactAnswer);
+            }
 
-            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
-            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
+//            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
+//            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
 
-            ReservoirSample rs = new ReservoirSample(ram, config.numAttributes);
+
+            ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
+            runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+
+            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
+            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
+
+            ReservoirSample rs = new ReservoirSample(ram, config.numAttributes, config.seed+5);
             runSynopsis(rs,  data, queries, exactAnswer);
         }
 
@@ -66,10 +79,13 @@ public class RunExperiment {
         }
         stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs, queryTime);
         int memUsage = nm.memoryUsage();
-        writeResults(nm.setting, queries, estimateNaiveMin, exactAnswer, errorNaiveMin, memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.ram);
+        writeResults(nm.setting, queries, estimateNaiveMin, exactAnswer, errorNaiveMin,
+                memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.getNumSamples(), nm.ram);
     }
 
-    private void writeResults(String setting, int[][] queries, int[] estimates, int[] exactAnswers, int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime, int d, int w, int ram) throws Exception {
+    private void writeResults(String setting, int[][] queries, int[] estimates, int[] exactAnswers,
+                              int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime,
+                              int d, int w, int numSamples, int ram) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -77,11 +93,11 @@ public class RunExperiment {
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","ram","query","numPredicates"};
+            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","numSamples","ram","query","numPredicates"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[16];
+            String[] result = new String[17];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
@@ -95,9 +111,10 @@ public class RunExperiment {
             result[10] = String.valueOf(Math.abs(estimates[i] - exactAnswers[i])/exactAnswers[i]);
             result[11] = String.valueOf(d);
             result[12] = String.valueOf(w);
-            result[13] = String.valueOf(ram);
-            result[14] = Arrays.toString(queries[i]);
-            result[15] = numPredicates(queries[i]);
+            result[13] = String.valueOf(numSamples);
+            result[14] = String.valueOf(ram);
+            result[15] = Arrays.toString(queries[i]);
+            result[16] = numPredicates(queries[i]);
 
             writer.writeNext(result);
         }
