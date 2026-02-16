@@ -75,8 +75,8 @@ public class TWODCM {
     public void add(int e1, int e2) {
 //        computeHashes(xxS, e1, reusableHashesS);
 //        computeHashes(xxT, e2, reusableHashesT);
-        computeHashes(e1, reusableHashesS);
-        computeHashes(e2, reusableHashesT);
+        computeHashes(e1, reusableHashesS, true);
+        computeHashes(e2, reusableHashesT, false);
 
         for (int j = 0; j < depth; j++) {
 //            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
@@ -88,8 +88,8 @@ public class TWODCM {
 //        computeHashes(xxS, e1, reusableHashesS);
 //        computeHashes(xxT, e2, reusableHashesT);
 
-        computeHashes(e1, reusableHashesS);
-        computeHashes(e2, reusableHashesT);
+        computeHashes(e1, reusableHashesS, true);
+        computeHashes(e2, reusableHashesT, false);
         int minEstimate = Integer.MAX_VALUE;
         for (int i = 0; i < depth; i++) {
 //            if (CM[i][reusableHashesS[i]][reusableHashesT[i]] < minEstimate) {
@@ -110,9 +110,10 @@ public class TWODCM {
         return x ^ (x >>> 16);
     }
 
-    public void computeHashes(int attrValue, int[] hashes) {
+
+    public void computeHashes(int attrValue, int[] hashes, boolean source) {
         final int mask = width - 1;
-        if (attrValue== attrS) {
+        if (source) { // never true
             for (int i = 0; i < depth; i++) {
                 hashes[i] = mix(attrValue, seedsS[i]) & mask;
             }
@@ -173,11 +174,11 @@ public class TWODCM {
     public int[] getCodomain(int attr, int predicate) {
         if (attr == attrS) {
 //            computeHashes(xxS, predicate, reusableHashesS);
-            computeHashes(predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS, true);
 
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT);
+            computeHashes(predicate, reusableHashesT, false);
 
             return reusableHashesT;
         }
@@ -248,11 +249,11 @@ public class TWODCM {
     int[] getPredIdx(int predicate, int attr) {
         if (attrS == attr) {
 //            computeHashes(xxS, predicate, reusableHashesS);
-            computeHashes(predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS, true);
 
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT);
+            computeHashes(predicate, reusableHashesT, false);
 
 //            computeHashes(xxT, predicate, reusableHashesT);
             return reusableHashesT;

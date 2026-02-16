@@ -13,7 +13,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      Pairwise summary for edges in ChowLiu tree. plus currently a single CM for every attribute.
      Pairwise summary updates counter at cell [h_x(x), h_y(y)].
      */
-    HashMap<Edge, TWODCM> scheme;
     TWODCM[] sketches;
     List<Edge> edges;
     private final int d;
@@ -30,7 +29,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         int[] params = getParams(ram, numAttributes);
         this.d = params[0];
         this.w = params[1];
-        scheme = new HashMap<>();
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
@@ -229,8 +227,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     public int memoryUsage() {
         int ram = 0;
-        for (Edge edge : scheme.keySet()) {
-            ram += scheme.get(edge).memory();
+        for (TWODCM cm : sketches) {
+            ram += cm.memory();
         }
         return ram;
     }
@@ -264,7 +262,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     private int[] getParams(int ram, int numAttributes) {
-        int d = 3;
+        int d = 5;
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes * numAttributes/2 - numAttributes/2;
         int cells = ram / 4;
