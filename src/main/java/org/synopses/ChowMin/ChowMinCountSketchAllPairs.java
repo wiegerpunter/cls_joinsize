@@ -22,7 +22,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
     private final int[][] seeds;
 
     public ChowMinCountSketchAllPairs(int numAttributes, int ram, List<Edge> chowLiu) {
-        this.setting = "ChowM2DCount";
+        this.setting = "ChowM2DCountAllPairs";
         this.ram = ram;
         this.numAttributes = numAttributes;
         this.edges = chowLiu;

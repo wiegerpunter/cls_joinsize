@@ -22,7 +22,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int mask;
 
     public ChowMinAllPairs(int numAttributes, int ram, List<Edge> chowLiu) {
-        this.setting = "ChowM2D";
+        this.setting = "ChowM2DAllPairs";
         this.ram = ram;
         this.numAttributes = numAttributes;
         this.edges = chowLiu;
