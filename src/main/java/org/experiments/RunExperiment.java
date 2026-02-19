@@ -1,9 +1,9 @@
 package org.experiments;
 
 import com.opencsv.CSVWriter;
-import org.jfree.chart.plot.Plot;
 import org.synopses.*;
 import org.synopses.ChowMin.ChowM2D;
+import org.synopses.ChowMin.ChowM2DVarElim;
 import org.synopses.ChowMin.ChowMinAllPairs;
 import org.synopses.ChowMin.ChowMinCountSketchAllPairs;
 import org.utils.Config;
@@ -11,7 +11,6 @@ import org.utils.Edge;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -36,14 +35,16 @@ public class RunExperiment {
 
 //            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
-
+//
+            ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(config.numAttributes, ram, chowLiuTree);
+            runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
 
             ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
             runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
-
-            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
-            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
-
+//
+//            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
+//            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
+//
             ReservoirSample rs = new ReservoirSample(ram, config.numAttributes, config.seed+5);
             runSynopsis(rs,  data, queries, exactAnswer);
         }

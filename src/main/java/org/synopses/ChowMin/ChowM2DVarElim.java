@@ -6,6 +6,8 @@ import org.utils.Edge;
 import java.util.*;
 import java.util.stream.IntStream;
 
+import static org.synopses.ChowMin.TWODCM.mix;
+
 
 public class ChowM2DVarElim extends AbstractSynopsis {
     /*
@@ -16,6 +18,9 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     List<Edge> edges;
     private final int d;
     private final int w;
+    private final int[][] seeds;
+    private final int[][] hashes;
+    private final int mask;
     List<List<Integer>> adjMatrix;
 
     public ChowM2DVarElim(int numAttributes, int ram, List<Edge> chowLiu) {
@@ -32,12 +37,34 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         }
         // adjacency matrix:
         buildGraph();
+        seeds = new int[numAttributes][d];
+        for (int i = 0; i < numAttributes; i++) {
+            for (int j = 0; j < seeds[i].length; j++) {
+                seeds[i][j] = j + i;
+            }
+        }
+        hashes = new int[numAttributes][d];
+        mask = w - 1;
+    }
+
+    public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
+
+        for (int i = 0; i < d; i++) {
+            hashes[i] = mix(attrValue, seeds[i]) & mask;
+        }
     }
 
     public void add(int[] record) {
         N += 1;
+        for (int att = 0; att < numAttributes; att++) {
+            int[] h = hashes[att];
+            int[] s = seeds[att];
+            int v = record[att];
+            computeHashes(v, h, s);
+        }
+
         for (Edge edge : edges) {
-            scheme.get(edge).add(record[edge.getS()], record[edge.getT()]);
+            scheme.get(edge).addHashed(hashes[edge.getS()], hashes[edge.getT()]);
         }
     }
 
@@ -62,7 +89,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         HashSet<Integer> attrsInPath = getAttrsInPath(f);
         // query the pairwise CMs to get to estimate.
 
-        return queryFactors(f, record, notActive, attrsInPath);
+        return queryFactors(f, record, attrsInPath);
     }
 
     public int numLatent(int[] record) {
@@ -155,25 +182,142 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     }
 
     ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
-    private int queryFactors(List<Edge> f, int[] record, ArrayList<Integer> notActive, HashSet<Integer> attrsInPath) {
-        Set<Integer> latentAttrs = getLatentAttrs(attrsInPath, notActive);
-//        int attrsInQuery = attrsInPath.size() + latentAttrs.size();
+    private int queryFactors(List<Edge> f, int[] record, HashSet<Integer> attrsInPath) {
         int minEstimate = Integer.MAX_VALUE;
-        constructDimensions(record, attrsInPath, latentAttrs);
-        int numDimensions = attributeDimensions.size();
-        int[] indices = new int[numDimensions];
-        if (latentAttrs.isEmpty()) {
-            minEstimate = pathQuery(0, numDimensions, indices, latentAttrs, f);
-        } else {
-            for (int row = 0; row < d; row++) {
-                int estimate = pathQuery(row, numDimensions, indices, latentAttrs, f);
-                if (estimate < minEstimate) {
-                    minEstimate = estimate;
-                }
+        Edge rootEdge = getRootEdge(f);
+        for (int row = 0; row < d; row++) {
+            int estimate = beliefPropagationRootEdgeRow(row, record, attrsInPath, adjMatrix, rootEdge);
+            if (estimate < minEstimate) {
+                minEstimate = estimate;
             }
         }
         return minEstimate;
     }
+
+    private Edge getRootEdge(List<Edge> f) {
+        return f.get(1);
+    }
+
+    private int beliefPropagationRootEdgeRow(
+            int row,
+            int[] record,
+            Set<Integer> subtree,
+            List<List<Integer>> adj,
+            Edge rootEdge
+        ) {
+        int ru = rootEdge.getS();
+        int rv = rootEdge.getT();
+
+        // messages: key = u*(numAttributes) + v
+        HashMap<Long, double[]> messages = new HashMap<>();
+
+        // evidence vectors phi[u][x]
+        double[][] phi = new double[numAttributes][w];
+        for (int u = 0; u < numAttributes; u++) {
+            if (!subtree.contains(u)) continue;
+
+            if (record[u] == -1) {
+                Arrays.fill(phi[u], 1.0);
+            } else {
+                phi[u][TWODCM.hash(record[u], u, row, w)] = 1.0;
+            }
+        }
+
+        dfsComputeMessages(row, ru, -1, subtree, adj, phi, messages, rootEdge);
+
+        // compute inc_ru (excluding rv)
+        double[] incRu = incR(subtree, adj, ru, rv, messages, phi);
+
+        // compute inc_rv (excluding ru)
+        double[] incRv = incR(subtree, adj, rv, ru, messages, phi);
+
+        // combine at base edge
+        TWODCM cm = scheme.get(new Edge(Math.min(ru, rv), Math.max(ru, rv)));
+        double total = 0.0;
+
+        for (int xru = 0; xru < w; xru++) {
+            for (int xrv = 0; xrv < w; xrv++) {
+                int joint = cm.getCount(row, ru, rv, xru, xrv); // implement
+                total += incRu[xru] * joint * incRv[xrv];
+            }
+        }
+
+        return (int) total;
+    }
+
+    private double[] incR(Set<Integer> subtree, List<List<Integer>> adj, int r, int rv, HashMap<Long, double[]> messages, double[][] phi) {
+        double[] incR = Arrays.copyOf(phi[r], w);
+        for (int nbr : adj.get(r)) {
+            if (!subtree.contains(nbr) || nbr == rv) continue;
+            double[] msg = messages.get(key(nbr, r));
+            for (int x = 0; x < w; x++) incR[x] *= msg[x];
+        }
+        return incR;
+    }
+
+    private void dfsComputeMessages(
+            int row,
+            int u,
+            int parent,
+            Set<Integer> subtree,
+            List<List<Integer>> adj,
+            double[][] phi,
+            HashMap<Long, double[]> messages,
+            Edge rootEdge
+        ) {
+        for (int nbr : adj.get(u)) {
+            if (nbr == parent) continue;
+            if (!subtree.contains(nbr)) continue;
+            dfsComputeMessages(row, nbr, u, subtree, adj, phi, messages, rootEdge);
+        }
+
+        if (parent == -1) return;
+
+        // incoming[x_u] = phi[u][x_u] * Π child_msg[x_u]
+        double[] incoming = Arrays.copyOf(phi[u], w);
+
+        for (int nbr : adj.get(u)) {
+            if (nbr == parent) continue;
+            if (!subtree.contains(nbr)) continue;
+
+            double[] msg = messages.get(key(nbr, u));
+            for (int xu = 0; xu < w; xu++) incoming[xu] *= msg[xu];
+        }
+
+        // outgoing[x_parent] = Σ_xu incoming[xu] * P(x_parent|xu)
+        double[] outgoing = new double[w];
+
+        TWODCM cm = scheme.get(new Edge(Math.min(u, parent), Math.max(u, parent)));
+
+        // compute row sums for conditional denom[xu]
+        double[] denom = new double[w];
+        for (int xu = 0; xu < w; xu++) {
+            double sum = 0.0;
+            for (int xp = 0; xp < w; xp++) {
+                sum += cm.getCount(row, u, parent, xu, xp); // todo: verify if this computes the correct marginal.
+            }
+            denom[xu] = (sum == 0.0) ? 1e-12 : sum;
+        }
+
+        // outgoing[xp] = Σ_xu incoming[xu] * (M[xu,xp]/denom[xu])
+        for (int xp = 0; xp < w; xp++) {
+            double sum = 0.0;
+            for (int xu = 0; xu < w; xu++) {
+                double joint = cm.getCount(row, u, parent, xu, xp);
+                sum += incoming[xu] * (joint / denom[xu]);
+            }
+            outgoing[xp] = sum;
+        }
+
+        messages.put(key(u, parent), outgoing);
+    }
+
+    private long key(int u, int v) {
+        return (((long) u) << 32) | (v & 0xffffffffL);
+    }
+
+
+
 
     private int pathQuery(int row, int numDimensions, int[] indices, Set<Integer> latentAttrs, List<Edge> f) {
         double sum = 0;
@@ -381,7 +525,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     }
 
     private int[] getParams(int ram, int numAttributes) {
-        int d = 3;
+        int d = 5;
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = Math.max(numAttributes - 1, 1);
         int cells = ram / 4;

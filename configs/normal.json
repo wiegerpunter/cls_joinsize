@@ -1,6 +1,6 @@
 {
   "N": 10000000,
-  "numQueries": 10000,
+  "numQueries": 100,
   "ramVals":[100000,1000000,5000000,10000000,50000000],
   "numAttributes":6,
   "modelType": "ClusteredModel",

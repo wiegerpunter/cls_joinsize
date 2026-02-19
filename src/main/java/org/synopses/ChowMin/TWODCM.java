@@ -84,6 +84,15 @@ public class TWODCM {
         }
     }
 
+
+    public void addHashed(int[] hashS, int[] hashT) {
+        for (int j = 0; j < depth; j++) {
+//            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
+            CMR[idx(j, hashS[j], hashT[j])] += 1;
+        }
+    }
+
+
     public int query(int e1, int e2) {
 //        computeHashes(xxS, e1, reusableHashesS);
 //        computeHashes(xxT, e2, reusableHashesT);
@@ -123,6 +132,10 @@ public class TWODCM {
                 hashes[i] = mix(attrValue, seedsT[i]) & mask;
             }
         }
+    }
+    static public int hash(int attrValue, int attribute, int row, int width) {
+        int seed = row + attribute;
+        return mix(attrValue, seed) & (width -1);
     }
 
     public void computeHashes(HashFunction[] hashFunctions, int attrValue, int[] hashes) {
@@ -268,4 +281,16 @@ public class TWODCM {
         return d * (width * width) + x * (width) + y;
     }
 
+    public int getCount(int row, int u, int v, int xu, int xv) {
+        // must ensure orientation matches (u is row variable, v is column variable)
+
+        if (this.attrS== u && this.attrT == v) {
+            return CMR[idx(row, xu, xv)];
+        } else if (this.attrS == v && this.attrT == u) {
+            // transpose
+            return CMR[idx(row, xv, xu)];
+        } else {
+            throw new RuntimeException("TWODCM does not match queried edge");
+        }
+    }
 }

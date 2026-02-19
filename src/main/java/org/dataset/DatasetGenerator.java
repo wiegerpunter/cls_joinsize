@@ -2,8 +2,11 @@ package org.dataset;
 
 import org.dataset.DependencyModels.*;
 import org.dataset.Distributions.ZipfDistribution;
+import org.duckdb.DuckDBAppender;
+import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
+import java.sql.*;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -75,11 +78,12 @@ public class DatasetGenerator {
         }
     }
 
-    public static Queries genQueries(int numQueriesPerPredicateNumber, int numPredicates, int[][] dataset) {
+    public static Queries genQueries(int numQueriesPerPredicateNumber, int numPredicates, int[][] dataset) throws SQLException {
 //        queries = new int[numQueries][numCols];
         ArrayList<int[]> potQueries = new ArrayList<>();
         int numQueriesGenerated = 0;
         int numAttributes = dataset[0].length;
+
         for (int p = 1; p <= numPredicates; p++) {
             numQueriesGenerated += addPotQueries(p, numQueriesPerPredicateNumber, potQueries, dataset, numAttributes);
         }
@@ -87,24 +91,127 @@ public class DatasetGenerator {
         for (int i = 0; i < numQueriesGenerated; i++) {
             queries[i] = potQueries.get(i);
         }
+        try (DuckDBConnection conn = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")) {
+            createDatasetTable(conn, dataset);
+            createQueriesTable(conn, queries);
 
-        // exact answer:
-        int[] exactAnswer = new int[queries.length];
-        for (int i = 0; i < queries.length; i++) {
-            for (int[] record : dataset) {
-                boolean found = true;
-                for (int k = 0; k < queries[i].length; k++) {
-                    if (queries[i][k] != -1 && queries[i][k] != record[k]) {
-                        found = false;
-                        break;
-                    }
+            int[] exactAnswer = computeAllCounts(conn, queries.length, numAttributes);
+
+            return new Queries(queries, exactAnswer);
+        }
+    }
+
+    private static void createDatasetTable(DuckDBConnection conn, int[][] dataset) throws SQLException {
+        int numAttributes = dataset[0].length;
+
+        // Create table schema dynamically
+        StringBuilder createSQL = new StringBuilder("CREATE TABLE dataset (");
+        for (int i = 0; i < numAttributes; i++) {
+            if (i > 0) createSQL.append(", ");
+            createSQL.append("a").append(i).append(" INT");
+        }
+        createSQL.append(");");
+
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(createSQL.toString());
+        }
+
+        DuckDBAppender appender = new DuckDBAppender(conn, "main", "dataset");
+        for (int[] row : dataset) {
+            appender.beginRow();
+            for (int i = 0; i < numAttributes; i++) {
+                appender.append(row[i]);
+            }
+            appender.endRow();
+        }
+
+        appender.close();
+    }
+
+    private static void createQueriesTable(Connection conn, int[][] queries) throws SQLException {
+        int numAttributes = queries[0].length;
+
+        StringBuilder createSQL = new StringBuilder("CREATE TABLE queries (qid INT, ");
+        for (int i = 0; i < numAttributes; i++) {
+            if (i > 0) createSQL.append(", ");
+            createSQL.append("a").append(i).append(" INT");
+        }
+        createSQL.append(");");
+
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(createSQL.toString());
+        }
+
+        StringBuilder insertSQL = new StringBuilder("INSERT INTO queries VALUES (?");
+        for (int i = 0; i < numAttributes; i++) {
+            insertSQL.append(", ?");
+        }
+        insertSQL.append(");");
+
+        try (PreparedStatement ps = conn.prepareStatement(insertSQL.toString())) {
+            for (int qid = 0; qid < queries.length; qid++) {
+                ps.setInt(1, qid);
+                for (int i = 0; i < numAttributes; i++) {
+                    ps.setInt(i + 2, queries[qid][i]);
                 }
-                if (found) {
-                    exactAnswer[i] += 1;
-                }
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private static int[] computeAllCounts(Connection conn, int numQueries, int numAttributes) throws SQLException {
+        int[] counts = new int[numQueries];
+
+        // Build join condition: (q.ai = -1 OR q.ai = d.ai)
+        StringBuilder joinCond = new StringBuilder();
+        for (int i = 0; i < numAttributes; i++) {
+            if (i > 0) joinCond.append(" AND ");
+            joinCond.append("(q.a").append(i).append(" = -1 OR q.a").append(i).append(" = d.a").append(i).append(")");
+        }
+
+        String sql =
+                "SELECT q.qid, COUNT(*) AS cnt " +
+                        "FROM queries q " +
+                        "JOIN dataset d ON " + joinCond +
+                        "GROUP BY q.qid " +
+                        "ORDER BY q.qid";
+
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                int qid = rs.getInt("qid");
+                int cnt = rs.getInt("cnt");
+                counts[qid] = cnt;
             }
         }
-        return new Queries(queries, exactAnswer);
+
+        return counts;
+    }
+
+
+    private static int computeCount(DuckDBConnection conn, int[] query) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM dataset WHERE 1=1");
+        ArrayList<Integer> params = new ArrayList<>();
+
+        for (int i = 0; i < query.length; i++) {
+            if (query[i] != -1) {
+                sql.append(" AND a").append(i).append(" = ?");
+                params.add(query[i]);
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setInt(i + 1, params.get(i));
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
     }
 
 
