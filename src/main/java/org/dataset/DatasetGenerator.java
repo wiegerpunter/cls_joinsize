@@ -93,11 +93,27 @@ public class DatasetGenerator {
         }
         try (DuckDBConnection conn = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")) {
             createDatasetTable(conn, dataset);
+            groupDatasetTable(conn, dataset);
             createQueriesTable(conn, queries);
+
 
             int[] exactAnswer = computeAllCounts(conn, queries.length, numAttributes);
 
             return new Queries(queries, exactAnswer);
+        }
+    }
+
+    private static void groupDatasetTable(DuckDBConnection conn, int[][] dataset) throws SQLException {
+        int numAttributes = dataset[0].length;
+        StringBuilder createSQL = new StringBuilder("CREATE TABLE dataset_grouped AS SELECT ");
+        for (int i = 0; i < numAttributes; i++) {
+            if (i > 0) createSQL.append(", ");
+            createSQL.append("a").append(i);
+        }
+        createSQL.append(", COUNT(*) AS cnt FROM dataset GROUP BY ALL;");
+        try (Statement stmt = conn.createStatement()) {
+            System.out.println("SQL StringL: " + createSQL);
+            stmt.execute(createSQL.toString());
         }
     }
 
@@ -142,22 +158,35 @@ public class DatasetGenerator {
             stmt.execute(createSQL.toString());
         }
 
-        StringBuilder insertSQL = new StringBuilder("INSERT INTO queries VALUES (?");
-        for (int i = 0; i < numAttributes; i++) {
-            insertSQL.append(", ?");
-        }
-        insertSQL.append(");");
+        DuckDBAppender appender = new DuckDBAppender((DuckDBConnection) conn, "main", "queries");
 
-        try (PreparedStatement ps = conn.prepareStatement(insertSQL.toString())) {
-            for (int qid = 0; qid < queries.length; qid++) {
-                ps.setInt(1, qid);
-                for (int i = 0; i < numAttributes; i++) {
-                    ps.setInt(i + 2, queries[qid][i]);
-                }
-                ps.addBatch();
+        for (int qid = 0; qid < queries.length; qid++) {
+            appender.beginRow();
+            appender.append(qid);
+            for (int i = 0; i < numAttributes; i++) {
+                appender.append(queries[qid][i]);
             }
-            ps.executeBatch();
+            appender.endRow();
         }
+        appender.close();
+
+
+//        StringBuilder insertSQL = new StringBuilder("INSERT INTO queries VALUES (?");
+//        for (int i = 0; i < numAttributes; i++) {
+//            insertSQL.append(", ?");
+//        }
+//        insertSQL.append(");");
+//
+//        try (PreparedStatement ps = conn.prepareStatement(insertSQL.toString())) {
+//            for (int qid = 0; qid < queries.length; qid++) {
+//                ps.setInt(1, qid);
+//                for (int i = 0; i < numAttributes; i++) {
+//                    ps.setInt(i + 2, queries[qid][i]);
+//                }
+//                ps.addBatch();
+//            }
+//            ps.executeBatch();
+//        }
     }
 
     private static int[] computeAllCounts(Connection conn, int numQueries, int numAttributes) throws SQLException {
@@ -171,9 +200,9 @@ public class DatasetGenerator {
         }
 
         String sql =
-                "SELECT q.qid, COUNT(*) AS cnt " +
+                "SELECT q.qid, SUM(d.cnt) AS cnt " +
                         "FROM queries q " +
-                        "JOIN dataset d ON " + joinCond +
+                        "JOIN dataset_grouped d ON " + joinCond +
                         "GROUP BY q.qid " +
                         "ORDER BY q.qid";
 

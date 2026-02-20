@@ -39,8 +39,8 @@ public class RunExperiment {
             ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(config.numAttributes, ram, chowLiuTree);
             runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
 
-            ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
-            runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+//            ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
+//            runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
 //
 //            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);

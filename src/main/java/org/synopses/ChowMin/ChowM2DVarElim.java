@@ -223,7 +223,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             }
         }
 
-        dfsComputeMessages(row, ru, -1, subtree, adj, phi, messages, rootEdge);
+        dfsComputeMessages(row, ru, -1, subtree, adj, phi, messages);
 
         // compute inc_ru (excluding rv)
         double[] incRu = incR(subtree, adj, ru, rv, messages, phi);
@@ -262,13 +262,12 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             Set<Integer> subtree,
             List<List<Integer>> adj,
             double[][] phi,
-            HashMap<Long, double[]> messages,
-            Edge rootEdge
+            HashMap<Long, double[]> messages
         ) {
         for (int nbr : adj.get(u)) {
             if (nbr == parent) continue;
             if (!subtree.contains(nbr)) continue;
-            dfsComputeMessages(row, nbr, u, subtree, adj, phi, messages, rootEdge);
+            dfsComputeMessages(row, nbr, u, subtree, adj, phi, messages);
         }
 
         if (parent == -1) return;
@@ -291,12 +290,12 @@ public class ChowM2DVarElim extends AbstractSynopsis {
 
         // compute row sums for conditional denom[xu]
         double[] denom = new double[w];
-        for (int xu = 0; xu < w; xu++) {
+        for (int xp = 0; xp < w; xp++) {
             double sum = 0.0;
-            for (int xp = 0; xp < w; xp++) {
-                sum += cm.getCount(row, u, parent, xu, xp); // todo: verify if this computes the correct marginal.
+            for (int xu = 0; xu < w; xu++) {
+                sum += cm.getCount(row, u, parent, xu, xp);
             }
-            denom[xu] = (sum == 0.0) ? 1e-12 : sum;
+            denom[xp] = (sum == 0.0) ? 1e-12 : sum;
         }
 
         // outgoing[xp] = Σ_xu incoming[xu] * (M[xu,xp]/denom[xu])
@@ -304,7 +303,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             double sum = 0.0;
             for (int xu = 0; xu < w; xu++) {
                 double joint = cm.getCount(row, u, parent, xu, xp);
-                sum += incoming[xu] * (joint / denom[xu]);
+                sum += incoming[xu] * (joint / denom[xp]);
             }
             outgoing[xp] = sum;
         }
@@ -525,7 +524,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     }
 
     private int[] getParams(int ram, int numAttributes) {
-        int d = 5;
+        int d = 3;
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = Math.max(numAttributes - 1, 1);
         int cells = ram / 4;
