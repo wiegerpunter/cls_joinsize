@@ -263,7 +263,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         int rv = rootEdge.getT();
 
         // messages: key = u*(numAttributes) + v
-        HashMap<Long, double[]> messages = new HashMap<>();
+        double[][][] messages = new double[numAttributes][numAttributes][];
 
         // evidence vectors phi[u][x]
         double[][] phi = new double[numAttributes][w];
@@ -299,11 +299,11 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         return (int) total;
     }
 
-    private double[] incR(Set<Integer> subtree, List<List<Integer>> adj, int r, int rv, HashMap<Long, double[]> messages, double[][] phi) {
+    private double[] incR(Set<Integer> subtree, List<List<Integer>> adj, int r, int rv, double[][][] messages, double[][] phi) {
         double[] incR = Arrays.copyOf(phi[r], w);
         for (int nbr : adj.get(r)) {
             if (!subtree.contains(nbr) || nbr == rv) continue;
-            double[] msg = messages.get(key(nbr, r));
+            double[] msg = messages[nbr][r];
             for (int x = 0; x < w; x++) incR[x] *= msg[x];
         }
         return incR;
@@ -316,7 +316,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             Set<Integer> subtree,
             List<List<Integer>> adj,
             double[][] phi,
-            HashMap<Long, double[]> messages
+            double[][][] messages
         ) {
         for (int nbr : adj.get(u)) {
             if (nbr == parent) continue;
@@ -333,7 +333,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             if (nbr == parent) continue;
             if (!subtree.contains(nbr)) continue;
 
-            double[] msg = messages.get(key(nbr, u));
+            double[] msg = messages[nbr][u];
             for (int xu = 0; xu < w; xu++) incoming[xu] *= msg[xu];
         }
 
@@ -361,12 +361,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             }
             outgoing[xp] = sum;
         }
-
-        messages.put(key(u, parent), outgoing);
-    }
-
-    private long key(int u, int v) {
-        return (((long) u) << 32) | (v & 0xffffffffL);
+        messages[u][parent] = outgoing;
     }
 
     public int memoryUsage() {
