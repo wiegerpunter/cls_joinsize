@@ -25,7 +25,7 @@ public class ChowM2DVarElimTest {
     void testChow2DMinSimple() {
         int numAttributes = 5;
         int ram = 100;
-        ChowM2DVarElim c = new ChowM2DVarElim(numAttributes, ram, getChowLiu());
+        ChowM2DVarElim c = new ChowM2DVarElim(numAttributes,1, ram, getChowLiu());
 
         int[] record = new int[]{1,2,3,4,5};
         int[] rec2 = new int[]{1,2,3,5,4};

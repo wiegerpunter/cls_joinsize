@@ -23,12 +23,12 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     private final int mask;
     List<List<Integer>> adjMatrix;
 
-    public ChowM2DVarElim(int numAttributes, int ram, List<Edge> chowLiu) {
+    public ChowM2DVarElim(int numAttributes, int depth, int ram, List<Edge> chowLiu) {
         this.setting = "ChowM2DVarElim";
         this.ram = ram;
         this.numAttributes = numAttributes;
         this.edges = chowLiu;
-        int[] params = getParams(ram, numAttributes);
+        int[] params = getParams(ram, depth, numAttributes);
         this.d = params[0];
         this.w = params[1];
         scheme = new HashMap<>();
@@ -523,8 +523,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         return factors;
     }
 
-    private int[] getParams(int ram, int numAttributes) {
-        int d = 3;
+    private int[] getParams(int ram, int d, int numAttributes) {
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = Math.max(numAttributes - 1, 1);
         int cells = ram / 4;

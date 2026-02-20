@@ -2,10 +2,7 @@ package org.experiments;
 
 import com.opencsv.CSVWriter;
 import org.synopses.*;
-import org.synopses.ChowMin.ChowM2D;
 import org.synopses.ChowMin.ChowM2DVarElim;
-import org.synopses.ChowMin.ChowMinAllPairs;
-import org.synopses.ChowMin.ChowMinCountSketchAllPairs;
 import org.utils.Config;
 import org.utils.Edge;
 
@@ -36,8 +33,11 @@ public class RunExperiment {
 //            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
 //
-            ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(config.numAttributes, ram, chowLiuTree);
-            runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
+            for (int j = 0; j < config.num_rows.length; j++) {
+                ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(config.numAttributes, config.num_rows[j], ram, chowLiuTree);
+                runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
+            }
+
 
 //            ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);

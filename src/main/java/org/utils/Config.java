@@ -16,6 +16,7 @@ public class Config {
     public double clusterNoise;
     public double latentInfl;
     public int latentCard;
+    public int[] num_rows;
 
     public void setClusters() {
         clusters = new int[numClusters][];
