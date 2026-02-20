@@ -4,7 +4,6 @@ import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
 
 import java.util.*;
-import java.util.stream.IntStream;
 
 import static org.synopses.ChowMin.TWODCM.mix;
 
@@ -87,9 +86,10 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         int root_cl = getRoot(sub);
         List<Edge> f = buildFactorization(sub, root_cl, adjMatrix);
         HashSet<Integer> attrsInPath = getAttrsInPath(f);
+        boolean hasLatent = attrsInPath.size() > active.size();
         // query the pairwise CMs to get to estimate.
 
-        return queryFactors(f, record, attrsInPath);
+        return queryFactors(f, record, attrsInPath, hasLatent);
     }
 
     public int numLatent(int[] record) {
@@ -182,11 +182,11 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     }
 
     ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
-    private int queryFactors(List<Edge> f, int[] record, HashSet<Integer> attrsInPath) {
+    private int queryFactors(List<Edge> f, int[] record, HashSet<Integer> attrsInPath, boolean hasLatent) {
         int minEstimate = Integer.MAX_VALUE;
         Edge rootEdge = getRootEdge(f);
         for (int row = 0; row < d; row++) {
-            int estimate = beliefPropagationRootEdgeRow(row, record, attrsInPath, adjMatrix, rootEdge);
+            int estimate = beliefPropagation(row, record, attrsInPath, f, rootEdge, hasLatent);
             if (estimate < minEstimate) {
                 minEstimate = estimate;
             }
@@ -195,10 +195,64 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     }
 
     private Edge getRootEdge(List<Edge> f) {
-        return f.get(1);
+        return f.get(0);
     }
 
-    private int beliefPropagationRootEdgeRow(
+    private int beliefPropagation(int row, int[] record, Set<Integer> subtree, List<Edge> factors, Edge rootEdge, boolean hasLatent) {
+        if (hasLatent) {
+            return beliefPropagationWithLatent(row, record, subtree, adjMatrix, rootEdge);
+        } else {
+            return beliefPropagationNoLatent(row, record, factors, rootEdge);
+        }
+    }
+
+    private int beliefPropagationNoLatent(
+            int row,
+            int[] record,
+            List<Edge> factors,
+            Edge rootEdge
+    ) {
+        int ru = rootEdge.getS();
+        int rv = rootEdge.getT();
+
+        // hashed positions
+        int hru = TWODCM.hash(record[ru], ru, row, w);
+        int hrv = TWODCM.hash(record[rv], rv, row, w);
+
+        // root joint (raw)
+        TWODCM rootCM = scheme.get(rootEdge);
+        double result = rootCM.getCount(row, ru, rv, hru, hrv);
+
+        // multiply all other conditionals
+        for (Edge e : factors) {
+
+            if (e.equals(rootEdge)) continue;
+
+            int u = e.getS();
+            int v = e.getT();
+
+            int hu = TWODCM.hash(record[u], u, row, w);
+            int hv = TWODCM.hash(record[v], v, row, w);
+
+            TWODCM cm = scheme.get(e);
+
+            double joint = cm.getCount(row, u, v, hu, hv);
+
+            // denominator = sum_x M(x, hv)  (column sum)
+            double denom = 0.0;
+            for (int x = 0; x < w; x++) {
+                denom += cm.getCount(row, u, v, hu, x);
+            }
+
+            if (denom == 0) denom = 1e-12;
+
+            result *= (joint / denom);
+        }
+
+        return (int) result;
+    }
+
+    private int beliefPropagationWithLatent(
             int row,
             int[] record,
             Set<Integer> subtree,
@@ -315,123 +369,6 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         return (((long) u) << 32) | (v & 0xffffffffL);
     }
 
-
-
-
-    private int pathQuery(int row, int numDimensions, int[] indices, Set<Integer> latentAttrs, List<Edge> f) {
-        double sum = 0;
-        int[][] k = new int[d][numAttributes];
-        while (true) {
-            for (int i = 0; i < numDimensions; i++) {
-                AttributeDimension dim = attributeDimensions.get(i);
-                int codomainIndex = indices[i];
-                for (int j = 0; j < d; j++) {
-                    k[j][dim.attribute] = dim.valuesPerCodomain[j][codomainIndex];
-                }
-            }
-
-            double product_p = 0;
-            for (Edge edge : f) {
-                int s = edge.getS();
-                int t = edge.getT();
-                if (s == t) {
-//                    if (latentAttrs.contains(s)) {
-//                        throw new RuntimeException("Latent attribute is root");
-//                    }
-                    Edge edgeOfRoot = getEdge(s);
-                    product_p = (double) scheme.get(edgeOfRoot).queryMarginalCodomain(s, k, false, row) / N;
-                } else {
-                    boolean hasLatent = edgeHasLatent(edge, latentAttrs);
-                    double jointFreq = (double) scheme.get(edge).queryCodomain(k, edge, hasLatent, row) / N;
-                    double denominator = (double) queryMarginalCodomain(s, k, latentAttrs.contains(s), row) / N;
-                    product_p *= jointFreq / denominator;
-                }
-            }
-            if (product_p > 0) {
-                sum += product_p;
-            }
-
-            int pos = numDimensions - 1;
-            while (pos >= 0) {
-                indices[pos]++;
-                if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
-                    break;
-                }
-                indices[pos] = 0;
-                pos--;
-            }
-
-            if (pos < 0) {
-                break; // all combinations exhausted
-            }
-        }
-        return (int) (N * sum);
-    }
-
-    private boolean edgeHasLatent(Edge edge, Set<Integer> latentAttrs) {
-        // Decide whether edge has a latent variable.
-        if (latentAttrs.contains(edge.getS())) {
-            return true;
-        } else return latentAttrs.contains(edge.getT());
-    }
-
-    void constructDimensions(int[] record, HashSet<Integer> attrsInPath, Set<Integer> latentAttrs) {
-        attributeDimensions = new ArrayList<>();
-        for (int i = 0; i < numAttributes; i++) {
-            boolean isLatent = latentAttrs.contains(i);
-            boolean isInPath = attrsInPath.contains(i);
-            if (!isInPath && !isLatent) {
-                continue;
-            }
-            int[] codomain;
-            if (!isLatent) {
-                codomain = getCodomain(i, record[i]); // format int[d rows]
-                int[][] valuesCodomain = new int[d][1];
-                for (int j = 0; j < codomain.length; j++) {
-                    valuesCodomain[j] = new int[]{codomain[j]};
-                }
-                attributeDimensions.add(new AttributeDimension(i, valuesCodomain));
-            } else {
-                int[][] valuesCodomain = new int[d][w];
-                for (int j = 0; j < valuesCodomain.length; j++) {
-                    valuesCodomain[j] = IntStream.range(0,valuesCodomain[j].length).toArray();
-                }
-                attributeDimensions.add(new AttributeDimension(i, valuesCodomain));
-            }
-        }
-    }
-
-    private int[] getCodomain(int attr, int predicate) {
-        // find right 2DCM
-        Edge e = getEdge(attr);
-
-        // return int[] codomain
-        return scheme.get(e).getCodomain(attr, predicate);
-    }
-
-    int getCondAttr(int u, int v, Edge edgeParent) {
-        // which of u and v is in edgeParent. It can only be one
-        int condAttr = -1;
-        ArrayList<Integer> edgeAttrs = new ArrayList<>();
-        edgeAttrs.add(edgeParent.getS());
-        edgeAttrs.add(edgeParent.getT());
-        for (Integer edgeAttr : edgeAttrs) {
-            if (edgeAttr == u) {
-                condAttr = u;
-                break;
-            }
-            if (edgeAttr == v) {
-                condAttr = v;
-                break;
-            }
-        }
-        if (condAttr == -1) {
-            throw new RuntimeException("Cannot find condAttr for edge " + edgeParent.getS() + " " + edgeParent.getT());
-        }
-        return condAttr;
-
-    }
-
     public int memoryUsage() {
         int ram = 0;
         for (Edge edge : edges) {
@@ -487,7 +424,6 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     // Find minimal subtree (union of paths among predicates)
     // Includes "hidden" latent variables like node 1 between 0 and 2.
     private Set<Integer> minimalSubtree(ArrayList<Integer> active) {
-
         Set<Integer> subtree = new HashSet<>();
         for (int i = 0; i < active.size(); i++) {
             for (int j = i + 1; j < active.size(); j++) {
@@ -505,7 +441,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         if (subtree.contains(root)) {
             stack.push(root);
             visited[root] = true;
-            factors.add(new Edge(root, root));
+//            factors.add(new Edge(root, root));
         } else {
             throw new RuntimeException("Subtree has no root.");
         }
@@ -529,14 +465,12 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);
-        width = Integer.highestOneBit(width);
         System.out.println("Chow M2D has parameters d: " + d + " w: " +width);
 
         return new int[]{d,width};
     }
 
     private int getRoot(Set<Integer> subtree) {
-
         for (Integer i: subtree) {
             if  (adjMatrix.get(i).size() == 1) {
                 return i;

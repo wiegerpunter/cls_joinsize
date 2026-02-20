@@ -37,11 +37,11 @@ public class DatasetGenerator {
         return 1000 + rng.nextInt(9000);
     }
 
-    public static int[][] getData(Config config) {
+    public static int[][] getData(Config config, int numAttributes) {
         Random rng = new Random(config.seed);
 
-        Attribute[] attrs = new Attribute[config.numAttributes];
-        for (int i = 0; i < config.numAttributes; i++) {
+        Attribute[] attrs = new Attribute[numAttributes];
+        for (int i = 0; i < numAttributes; i++) {
             int k = sampleCardinality(rng);
             attrs[i] = new Attribute(i, k, new ZipfDistribution(k, 1.5));
         }
@@ -57,7 +57,7 @@ public class DatasetGenerator {
         } 
 
         DatasetGenerator gen =
-                new DatasetGenerator(model, config.numAttributes, config.N);
+                new DatasetGenerator(model, numAttributes, config.N);
 
         return gen.generate(rng);
     }

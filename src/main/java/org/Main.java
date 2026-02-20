@@ -37,17 +37,20 @@ public class Main {
         String jsonFilePath = args[0];
         ObjectMapper mapper = new ObjectMapper();
         Config config = mapper.readValue(new File(jsonFilePath), Config.class);
-        config.setClusters();
+
 //        DataGenerator generator = new DataGenerator(config.N, config.cardinalities);
 //        generator.run(config);
-        int[][] data = DatasetGenerator.getData(config);
-//        int[][] data = generator.getDataset();
-        DatasetGenerator.Queries Q= DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates, data);
-        int[][] queries = Q.getQueries();
-        int[] exactAnswer = Q.getExactAnswer();
-        List<Edge> chowLiuTree = computeExactMutualInformation(data);
+        for (int i = 0; i < config.numAttributes.length; i++) {
+            config.setClusters(i);
+            int[][] data = DatasetGenerator.getData(config, config.numAttributes[i]);
+            //        int[][] data = generator.getDataset();
+            DatasetGenerator.Queries Q = DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates[i], data);
+            int[][] queries = Q.getQueries();
+            int[] exactAnswer = Q.getExactAnswer();
+            List<Edge> chowLiuTree = computeExactMutualInformation(data);
 
-        RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, chowLiuTree);
+            RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, chowLiuTree, config.maxNumPredicates[i]);
+        }
 
 
     }

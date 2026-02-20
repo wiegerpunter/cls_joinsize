@@ -16,7 +16,7 @@ public class RunExperiment {
     private final String CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
 
     Config config;
-    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, List<Edge> chowLiuTree) throws Exception {
+    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, List<Edge> chowLiuTree, int maxNumPredicates) throws Exception {
         this.config = config;
 
         for (int ram : config.ramVals) {
@@ -25,8 +25,8 @@ public class RunExperiment {
 //
 //            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
 //            runSynopsis(naiveMin2D, data, queries, exactAnswer);
-            if (config.maxNumPredicates == 1) {
-                SingleCountMins cm = new SingleCountMins(config.numAttributes, ram);
+            if (maxNumPredicates == 1) {
+                SingleCountMins cm = new SingleCountMins(data[0].length, ram);
                 runSynopsis(cm, data, queries, exactAnswer);
             }
 
@@ -34,7 +34,7 @@ public class RunExperiment {
 //            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
 //
             for (int j = 0; j < config.num_rows.length; j++) {
-                ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(config.numAttributes, config.num_rows[j], ram, chowLiuTree);
+                ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(data[0].length, config.num_rows[j], ram, chowLiuTree);
                 runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
             }
 
@@ -45,7 +45,7 @@ public class RunExperiment {
 //            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
 //
-            ReservoirSample rs = new ReservoirSample(ram, config.numAttributes, config.seed+5);
+            ReservoirSample rs = new ReservoirSample(ram, data[0].length, config.seed+5);
             runSynopsis(rs,  data, queries, exactAnswer);
         }
 

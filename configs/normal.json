@@ -1,13 +1,13 @@
 {
-  "N": 100000000,
+  "N": 1000000,
   "numQueries": 10000,
   "ramVals":[100000,1000000,5000000,10000000,50000000],
-  "numAttributes":6,
+  "numAttributes":[6],
   "modelType": "ClusteredModel",
   "dataDistribution": "Corr",
   "statsData": false,
-  "maxNumPredicates": 6,
+  "maxNumPredicates": [6],
   "printData": false,
-  "numClusters": 2,
-  "num_rows": [3,5,7]
+  "numClusters": 1,
+  "num_rows": [5]
 }
