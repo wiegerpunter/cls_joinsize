@@ -1,5 +1,5 @@
 {
-  "N": 1000000,
+  "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000,1000000,5000000,10000000,50000000],
   "numAttributes":[6],
@@ -8,6 +8,6 @@
   "statsData": false,
   "maxNumPredicates": [6],
   "printData": false,
-  "numClusters": 1,
-  "num_rows": [5]
+  "numClusters": 2,
+  "num_rows": [3,5]
 }

@@ -22,6 +22,26 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     private final int mask;
     List<List<Integer>> adjMatrix;
 
+    private static class Message {
+        boolean sparse;
+        int index;          // valid if sparse
+        double[] values;    // valid if dense
+
+        static Message sparse(int idx) {
+            Message m = new Message();
+            m.sparse = true;
+            m.index = idx;
+            return m;
+        }
+
+        static Message dense(double[] v) {
+            Message m = new Message();
+            m.sparse = false;
+            m.values = v;
+            return m;
+        }
+    }
+
     public ChowM2DVarElim(int numAttributes, int depth, int ram, List<Edge> chowLiu) {
         this.setting = "ChowM2DVarElim";
         this.ram = ram;
@@ -263,50 +283,91 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         int rv = rootEdge.getT();
 
         // messages: key = u*(numAttributes) + v
-        double[][][] messages = new double[numAttributes][numAttributes][];
+        Message[][] messages = new Message[numAttributes][numAttributes];
 
         // evidence vectors phi[u][x]
-        double[][] phi = new double[numAttributes][w];
+        Message[] phi = new Message[numAttributes];
         for (int u = 0; u < numAttributes; u++) {
             if (!subtree.contains(u)) continue;
 
             if (record[u] == -1) {
-                Arrays.fill(phi[u], 1.0);
+                double[] v = new double[w];
+                Arrays.fill(v, 1.0);
+                phi[u] = Message.dense(v);
             } else {
-                phi[u][TWODCM.hash(record[u], u, row, w)] = 1.0;
+                phi[u] = Message.sparse(TWODCM.hash(record[u], u, row, w));
             }
         }
 
         dfsComputeMessages(row, ru, -1, subtree, adj, phi, messages);
 
         // compute inc_ru (excluding rv)
-        double[] incRu = incR(subtree, adj, ru, rv, messages, phi);
+        Message incRu = incR(subtree, adj, ru, rv, messages, phi);
 
         // compute inc_rv (excluding ru)
-        double[] incRv = incR(subtree, adj, rv, ru, messages, phi);
+        Message incRv = incR(subtree, adj, rv, ru, messages, phi);
 
         // combine at base edge
         TWODCM cm = scheme.get(new Edge(Math.min(ru, rv), Math.max(ru, rv)));
         double total = 0.0;
 
-        for (int xru = 0; xru < w; xru++) {
-            for (int xrv = 0; xrv < w; xrv++) {
-                int joint = cm.getCount(row, ru, rv, xru, xrv); // implement
-                total += incRu[xru] * joint * incRv[xrv];
+        if (incRu.sparse && incRv.sparse) {
+            total = cm.getCount(row, ru, rv , incRu.index, incRv.index);
+        } else if (incRu.sparse) {
+            int xu = incRu.index;
+            for (int xv = 0; xv < w; xv++) {
+                total += cm.getCount(row, ru, rv, xu, xv)
+                        * incRv.values[xv];
+            }
+        } else if (incRv.sparse) {
+
+            int xv = incRv.index;
+            for (int xu = 0; xu < w; xu++) {
+                total += cm.getCount(row, ru, rv, xu, xv)
+                        * incRu.values[xu];
+            }
+
+        } else {
+            for (int xru = 0; xru < w; xru++) {
+                if (incRu.values[xru] == 0) continue;
+
+                for (int xrv = 0; xrv < w; xrv++) {
+                    int joint = cm.getCount(row, ru, rv, xru, xrv); // implement
+                    total += incRu.values[xru] * joint * incRv.values[xrv];
+                }
             }
         }
-
         return (int) total;
     }
 
-    private double[] incR(Set<Integer> subtree, List<List<Integer>> adj, int r, int rv, double[][][] messages, double[][] phi) {
-        double[] incR = Arrays.copyOf(phi[r], w);
+    private Message incR(Set<Integer> subtree, List<List<Integer>> adj, int r, int rv, Message[][] messages, Message[] phi) {
+        Message incoming = phi[r];
         for (int nbr : adj.get(r)) {
             if (!subtree.contains(nbr) || nbr == rv) continue;
-            double[] msg = messages[nbr][r];
-            for (int x = 0; x < w; x++) incR[x] *= msg[x];
+            Message msg = messages[nbr][r];
+
+            if (incoming.sparse && msg.sparse) {
+                if (incoming.index != msg.index) {
+                    return Message.dense(new double[w]);
+                }
+            } else {
+                if (incoming.sparse) {
+                    double[] tmp = new double[w];
+                    tmp[incoming.index] = 1.0;
+                    incoming = Message.dense(tmp);
+                }
+                if (msg.sparse) {
+                    for (int i = 0; i < w; i++) {
+                        incoming.values[i] *= (i == msg.index ? 1.0 : 0.0);
+                    }
+                } else {
+                    for (int i = 0; i < w; i++) {
+                        incoming.values[i] *= msg.values[i];
+                    }
+                }
+            }
         }
-        return incR;
+        return incoming;
     }
 
     private void dfsComputeMessages(
@@ -315,8 +376,8 @@ public class ChowM2DVarElim extends AbstractSynopsis {
             int parent,
             Set<Integer> subtree,
             List<List<Integer>> adj,
-            double[][] phi,
-            double[][][] messages
+            Message[] phi,
+            Message[][] messages
         ) {
         for (int nbr : adj.get(u)) {
             if (nbr == parent) continue;
@@ -327,41 +388,69 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         if (parent == -1) return;
 
         // incoming[x_u] = phi[u][x_u] * Π child_msg[x_u]
-        double[] incoming = Arrays.copyOf(phi[u], w);
+        Message incoming = phi[u];
 
         for (int nbr : adj.get(u)) {
             if (nbr == parent) continue;
             if (!subtree.contains(nbr)) continue;
 
-            double[] msg = messages[nbr][u];
-            for (int xu = 0; xu < w; xu++) incoming[xu] *= msg[xu];
+            Message msg = messages[nbr][u];
+            if (incoming.sparse && msg.sparse) {
+                if (incoming.index != msg.index) {
+                    incoming = Message.dense(new double[w]);
+                }
+            } else {
+                if (incoming.sparse) {
+                    double[] tmp = new double[w];
+                    tmp[incoming.index] = 1.0;
+                    incoming = Message.dense(tmp);
+                }
+                if (msg.sparse) {
+                    for (int i = 0; i < w; i++) {
+                        incoming.values[i] *= (i == msg.index ? 1.0 : 0.0);
+                    }
+                } else {
+                    for (int i = 0; i < w; i++) {
+                        incoming.values[i] *= msg.values[i];
+                    }
+                }
+            }
         }
-
-        // outgoing[x_parent] = Σ_xu incoming[xu] * P(x_parent|xu)
-        double[] outgoing = new double[w];
 
         TWODCM cm = scheme.get(new Edge(Math.min(u, parent), Math.max(u, parent)));
 
-        // compute row sums for conditional denom[xu]
-        double[] denom = new double[w];
-        for (int xp = 0; xp < w; xp++) {
-            double sum = 0.0;
-            for (int xu = 0; xu < w; xu++) {
-                sum += cm.getCount(row, u, parent, xu, xp);
+        double[] outgoing = new double[w];
+        if (incoming.sparse) {
+            for (int xp = 0; xp < w; xp++) {
+                double sum_marginal = 0.0;
+                for (int xu = 0; xu < w; xu++) {
+                    sum_marginal += cm.getCount(row, u, parent, xu, xp);
+                }
+                if (sum_marginal==0) sum_marginal = 1e-12;
+                double joint = cm.getCount(row, u, parent, incoming.index, xp);
+                outgoing[xp] = joint / sum_marginal;
             }
-            denom[xp] = (sum == 0.0) ? 1e-12 : sum;
-        }
+        } else {
+            double[] denom = new double[w];
+            for (int xp = 0; xp < w; xp++) {
+                double sum = 0.0;
+                for (int xu = 0; xu < w; xu++) {
+                    sum += cm.getCount(row, u, parent, xu, xp);
+                }
+                denom[xp] = (sum == 0.0) ? 1e-12 : sum;
+            }
 
-        // outgoing[xp] = Σ_xu incoming[xu] * (M[xu,xp]/denom[xu])
-        for (int xp = 0; xp < w; xp++) {
-            double sum = 0.0;
-            for (int xu = 0; xu < w; xu++) {
-                double joint = cm.getCount(row, u, parent, xu, xp);
-                sum += incoming[xu] * (joint / denom[xp]);
+            // outgoing[xp] = Σ_xu incoming[xu] * (M[xu,xp]/denom[xu])
+            for (int xp = 0; xp < w; xp++) {
+                double sum = 0.0;
+                for (int xu = 0; xu < w; xu++) {
+                    double joint = cm.getCount(row, u, parent, xu, xp);
+                    sum += incoming.values[xu] * (joint / denom[xp]);
+                }
+                outgoing[xp] = sum;
             }
-            outgoing[xp] = sum;
         }
-        messages[u][parent] = outgoing;
+        messages[u][parent] = Message.dense(outgoing);
     }
 
     public int memoryUsage() {
