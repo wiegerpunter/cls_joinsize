@@ -75,7 +75,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
 
         for (int i = 0; i < d; i++) {
-            hashes[i] = mix(attrValue, seeds[i]) & mask;
+            hashes[i] = mix(attrValue, seeds[i], mask);
         }
     }
     public void add(int[] record) {
@@ -295,7 +295,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);
-        width = Integer.highestOneBit(width);
         System.out.println("Chow M All pairs has parameters d: " + d + " w: " +width);
 
         return new int[]{d,width};

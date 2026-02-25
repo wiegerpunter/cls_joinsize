@@ -39,7 +39,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
             }
         }
         for (int i = 0; i < numAttributes; i++) {
-            margSketches[i] = new CountSketch(d,w, i);
+            margSketches[i] = new CountSketch(d,w*w, i);
         }
 
         seeds = new int[numAttributes][d];
@@ -142,9 +142,6 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
             } else {
                 double jointFreq = sketches[sketch_idx(s, t)].query(queryRecord[s], queryRecord[t]);
                 double denominator = margSketches[s].query(queryRecord[s]);
-                if (denominator == 0) {
-                    denominator = 1e-12;
-                }
                 product_p *= jointFreq / denominator;
             }
         }
@@ -160,7 +157,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
             ram+= d*w*w*4;
         }
         for (CountSketch s : margSketches) {
-            ram+= d*w*4;
+            ram+= d*w*w*4;
         }
         return ram;
     }
@@ -175,7 +172,6 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);
-        width = Integer.highestOneBit(width);
         System.out.println("Chow M All pairs has parameters d: " + d + " w: " +width);
 
         return new int[]{d,width};

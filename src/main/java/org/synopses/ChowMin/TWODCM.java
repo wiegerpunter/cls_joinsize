@@ -111,12 +111,18 @@ public class TWODCM {
         return minEstimate;
     }
 
-    static int mix(int x, int seed) {
+    static int mix(int x, int seed, int mask) {
         x ^= seed;
         x *= 0x85ebca6b;
         x ^= x >>> 13;
         x *= 0xc2b2ae35;
-        return x ^ (x >>> 16);
+        x = x ^ (x >>> 16);
+        x= x % mask;
+        if (x<0) {
+            return x+mask;
+        } else {
+            return x;
+        }
     }
 
 
@@ -124,18 +130,18 @@ public class TWODCM {
         final int mask = width - 1;
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsS[i]) & mask;
+                hashes[i] = mix(attrValue, seedsS[i], mask);
             }
         } else {
 
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsT[i]) & mask;
+                hashes[i] = mix(attrValue, seedsT[i], mask);
             }
         }
     }
     static public int hash(int attrValue, int attribute, int row, int width) {
         int seed = row + attribute;
-        return mix(attrValue, seed) & (width -1);
+        return mix(attrValue, seed, (width -1));
     }
 
     public void computeHashes(HashFunction[] hashFunctions, int attrValue, int[] hashes) {

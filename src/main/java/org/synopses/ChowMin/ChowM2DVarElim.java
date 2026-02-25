@@ -69,7 +69,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
     public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
 
         for (int i = 0; i < d; i++) {
-            hashes[i] = mix(attrValue, seeds[i]) & mask;
+            hashes[i] = mix(attrValue, seeds[i], mask);
         }
     }
 
