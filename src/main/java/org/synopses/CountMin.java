@@ -78,21 +78,6 @@ public class CountMin {
         return CM[row][column];
     }
 
-
-    public void computeHashes(int attrValue, int[] hashes) {
-        final int mask = width - 1;
-        for (int i = 0; i < depth; i++) {
-            hashes[i] = mix(attrValue, seeds[i]) & mask;
-        }
-
-    }
-    static int mix(int x, int seed) {
-        x ^= seed;
-        x *= 0x85ebca6b;
-        x ^= x >>> 13;
-        x *= 0xc2b2ae35;
-        return x ^ (x >>> 16);
-    }
     public static void computeHashes(HashFunction[] hashFunctions, int attrValue, int depth, int width, int[] hashes) {
         for (int i = 0; i < depth; i++) {
             int hash = hashFunctions[i].hashInt(attrValue).asInt();

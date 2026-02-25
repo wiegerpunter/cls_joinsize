@@ -60,17 +60,23 @@ public class CountSketch {
     public void computeHashes(int attrValue, int[] hashes, int[] signHashes) {
         final int mask = width - 1;
         for (int i = 0; i < depth; i++) {
-            hashes[i] = mix(attrValue, seeds[i]) & mask;
+            hashes[i] = mix(attrValue, seeds[i], mask);
             signHashes[i] = signHash(attrValue, seedsG[i]);
         }
 
     }
-    static int mix(int x, int seed) {
+    static int mix(int x, int seed, int mask) {
         x ^= seed;
         x *= 0x85ebca6b;
         x ^= x >>> 13;
         x *= 0xc2b2ae35;
-        return x ^ (x >>> 16);
+        x ^= (x >>> 16);
+        x = x % mask;
+        if (x < 0) {
+            return x + mask;
+        } else {
+            return x;
+        }
     }
     static int signHash(int z, int seed) {
         z ^= seed;

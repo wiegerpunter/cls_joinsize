@@ -69,14 +69,19 @@ public class TWODCount {
         return ests[depth/2];
     }
 
-    static int mix(int x, int y, int seed) {
+    static int mix(int x, int y, int seed, int mask) {
         long z = key(x, y);
         z ^= seed;
         z *= 0x85ebca6bL;
         z ^= z >>> 13;
         z *= 0xc2b2ae35L;
         z ^= z >>> 16;
-        return (int) z;
+        z = (int) z % mask;
+        if (z<0) {
+            return (int) z + mask;
+        } else {
+            return (int) z;
+        }
     }
     static int signHash(int x, int y, int seed) {
         long z = key(x, y);
@@ -95,7 +100,7 @@ public class TWODCount {
     public void computeHashes(int attr1, int attr2, int[] hashes, int[] signHashes) {
         final int mask = width*width - 1;
         for (int i = 0; i < depth; i++) {
-            hashes[i] = mix(attr1, attr2, seeds[i]) & mask;
+            hashes[i] = mix(attr1, attr2, seeds[i], mask);
             signHashes[i] = signHash(attr1, attr2, seedsG[i]);
         }
 
