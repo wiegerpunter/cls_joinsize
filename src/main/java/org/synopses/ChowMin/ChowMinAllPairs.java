@@ -176,10 +176,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 int s = edge.getS();
                 int t = edge.getT();
                 if (s == t) {
-                    product_p = (double) sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k)/N;
+                    product_p = (double) sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
                 } else {
-                    double jointFreq = (double) sketches[sketch_idx(edge.getS(), edge.getT())].queryCodomainWOLatent(k, edge) / N;
-                    double denominator = (double) queryMarginalCodomain(s, k) / N;
+                    double jointFreq = (double) sketches[sketch_idx(edge.getS(), edge.getT())].queryCodomainWOLatent(k, edge);
+                    double denominator = (double) queryMarginalCodomain(s, k);
                     product_p *= jointFreq / denominator;
                 }
             }
@@ -204,7 +204,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         if (sum == 0) {
             System.out.println("q 0");
         }
-        return (int) (N * sum);
+        return (int) (sum);
     }
 
     void constructDimensions(int[] record, HashSet<Integer> attrsInPath) {
