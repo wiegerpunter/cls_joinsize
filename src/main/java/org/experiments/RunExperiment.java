@@ -3,6 +3,8 @@ package org.experiments;
 import com.opencsv.CSVWriter;
 import org.synopses.*;
 import org.synopses.ChowMin.ChowM2DVarElim;
+import org.synopses.ChowMin.ChowMinAllPairs;
+import org.synopses.ChowMin.ChowMinCountSketchAllPairs;
 import org.utils.Config;
 import org.utils.Edge;
 
@@ -16,7 +18,7 @@ public class RunExperiment {
     private final String CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
 
     Config config;
-    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, List<Edge> chowLiuTree, int maxNumPredicates) throws Exception {
+    public RunExperiment(Config config, int[][] data, int[][] queries, int[] exactAnswer, double[][] MIs, List<Edge> chowLiuTree, int maxNumPredicates) throws Exception {
         this.config = config;
 
         for (int ram : config.ramVals) {
@@ -38,13 +40,16 @@ public class RunExperiment {
                 runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
             }
 
+            for (int j = 0; j < config.num_rows.length; j++) {
+                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, MIs);
+                runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+            }
 
-//            ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(config.numAttributes, ram, chowLiuTree);
-//            runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
-//
-//            ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(config.numAttributes, ram, chowLiuTree);
-//            runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
-//
+            for (int j = 0; j < config.num_rows.length; j++) {
+                ChowMinCountSketchAllPairs ChowLiuCountAllPairs = new ChowMinCountSketchAllPairs(data[0].length, config.num_rows[j], ram, MIs);
+                runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
+            }
+
             ReservoirSample rs = new ReservoirSample(ram, data[0].length, config.seed+5);
             runSynopsis(rs,  data, queries, exactAnswer);
         }

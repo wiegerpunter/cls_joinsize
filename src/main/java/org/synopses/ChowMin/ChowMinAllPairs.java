@@ -1,10 +1,12 @@
 package org.synopses.ChowMin;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
 
 import java.util.*;
 
+import static org.ChowLiu.chowLiuWithPredicates;
 import static org.synopses.ChowMin.TWODCM.mix;
 
 
@@ -20,13 +22,14 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int[][] seeds;
     private final int[][] hashes;
     private final int mask;
+    private final double[][] MIs;
 
-    public ChowMinAllPairs(int numAttributes, int ram, List<Edge> chowLiu) {
+    public ChowMinAllPairs(int numAttributes, int depth, int ram, double[][] MIs) {
         this.setting = "ChowM2DAllPairs";
         this.ram = ram;
         this.numAttributes = numAttributes;
-        this.edges = chowLiu;
-        int[] params = getParams(ram, numAttributes);
+        this.MIs = MIs;
+        int[] params = getParams(ram, numAttributes, depth);
         this.d = params[0];
         this.w = params[1];
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
@@ -112,7 +115,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         HashSet<Integer> attrsInPath = getAttrsInPath(active);
 
         int root_cl = active.get(0);
-        List<Edge> f = buildFactorization(attrsInPath, root_cl);
+        List<Edge> f = buildFactorization(attrsInPath, root_cl, numAttributes, MIs);
         // query the pairwise CMs to get to estimate.
 
         return queryFactors(f, record, attrsInPath);
@@ -237,20 +240,26 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      * Find path between two nodes in a tree using BFS.
      */
 
-    List<Edge> buildFactorization(Set<Integer> subtree, int root) {
+    public static List<Edge> buildFactorization(Set<Integer> subtree, int root, int numAttributes, double[][] MIs) {
         List<Edge> factors = new ArrayList<>();
-        boolean[] visited = new boolean[numAttributes];
+        List<List<Integer>> adj = getChowLiuAdjMatrix(subtree, numAttributes, MIs);
+
+        boolean[] visited = new boolean[adj.size()];
         Deque<Integer> stack = new ArrayDeque<>();
         // if root not in query, try something else of subtree
         //no root in all pairwise
-        stack.push(root);
-        visited[root] = true;
-        factors.add(new Edge(root, root));
+        if (subtree.contains(root)) {
+            stack.push(root);
+            visited[root] = true;
+            factors.add(new Edge(root, root));
+        } else {
+            throw new RuntimeException("Subtree has no root.");
+        }
 
 
         while (!stack.isEmpty()) {
             int u = stack.pop();
-            for (int v =0; v < numAttributes; v++) {
+            for (int v :adj.get(u)) {
                 if (subtree.contains(v) && !visited[v]) {
                     visited[v] = true;
                     stack.push(v);
@@ -261,8 +270,26 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return factors;
     }
 
-    private int[] getParams(int ram, int numAttributes) {
-        int d = 5;
+    private static List<List<Integer>> getChowLiuAdjMatrix(Set<Integer> subtree, int numAttributes, double[][] MIs) {
+        List<Edge> chowLiu = chowLiuWithPredicates(MIs, subtree, numAttributes);
+        return getLists(chowLiu, numAttributes);
+    }
+
+    @NonNull
+    static List<List<Integer>> getLists(List<Edge> edges, int numAttributes) {
+        List<List<Integer>> adjMatrix = new ArrayList<>(numAttributes);
+        for (int i = 0; i < numAttributes; i++) adjMatrix.add(new ArrayList<>());
+        if (edges.size()==1){
+            adjMatrix.get(edges.get(0).getS()).add(edges.get(0).getT());
+        }
+        for (Edge e : edges) {
+            adjMatrix.get(e.getS()).add(e.getT());
+            adjMatrix.get(e.getT()).add(e.getS());
+        }
+        return adjMatrix;
+    }
+
+    private int[] getParams(int ram, int numAttributes, int d) {
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes * numAttributes/2 - numAttributes/2;
         int cells = ram / 4;

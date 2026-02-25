@@ -23,10 +23,9 @@ import org.synopses.*;
 import org.utils.Config;
 import org.utils.Edge;
 
-import static org.ChowLiu.chowLiu;
-import static org.ChowLiu.computeExactMutualInformation;
-
 import org.utils.Record;
+
+import static org.ChowLiu.*;
 
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
@@ -47,9 +46,10 @@ public class Main {
             DatasetGenerator.Queries Q = DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates[i], data);
             int[][] queries = Q.getQueries();
             int[] exactAnswer = Q.getExactAnswer();
-            List<Edge> chowLiuTree = computeExactMutualInformation(data);
+            double[][] MIs = computeMIs(data);
+            List<Edge> chowLiuTree = computeChowLiu(MIs, data[0].length);
 
-            RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, chowLiuTree, config.maxNumPredicates[i]);
+            RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, MIs, chowLiuTree, config.maxNumPredicates[i]);
         }
 
 

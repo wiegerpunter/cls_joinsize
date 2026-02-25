@@ -6,7 +6,8 @@ import org.utils.Edge;
 
 import java.util.*;
 
-import static org.synopses.ChowMin.TWODCM.mix;
+import static org.ChowLiu.chowLiuWithPredicates;
+import static org.synopses.ChowMin.ChowMinAllPairs.getLists;
 
 
 public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
@@ -20,13 +21,14 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
     private final int d;
     private final int w;
     private final int[][] seeds;
+    private final double[][] MIs;
 
-    public ChowMinCountSketchAllPairs(int numAttributes, int ram, List<Edge> chowLiu) {
+    public ChowMinCountSketchAllPairs(int numAttributes, int depth, int ram, double[][] MIs) {
         this.setting = "ChowM2DCountAllPairs";
         this.ram = ram;
         this.numAttributes = numAttributes;
-        this.edges = chowLiu;
-        int[] params = getParams(ram, numAttributes);
+        this.MIs = MIs;
+        int[] params = getParams(ram, numAttributes, depth);
         this.d = params[0];
         this.w = params[1];
         sketches = new TWODCount[numAttributes*(numAttributes-1)/2];
@@ -68,7 +70,9 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
                 int sid = sketch_idx(a1, a2);
                 sketches[sid].add(record[a1], record[a2]);
             }
-            margSketches[a1].add(record[a1]);
+        }
+        for (int i = 0; i < numAttributes; i++) {
+            margSketches[i].add(record[i]);
         }
     }
 
@@ -88,7 +92,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
         HashSet<Integer> attrsInPath = getAttrsInPath(active);
 
         int root_cl = active.get(0);
-        List<Edge> f = buildFactorization(attrsInPath, root_cl);
+        List<Edge> f = ChowMinAllPairs.buildFactorization(attrsInPath, root_cl, numAttributes, MIs);
         // query the pairwise CMs to get to estimate.
 
         return queryFactors(f, record);
@@ -123,47 +127,31 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
 
     ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
     private int queryFactors(List<Edge> f, int[] record) {
-//        constructDimensions(record, attrsInPath);
-        int numDimensions = attributeDimensions.size();
-        int[] indices = new int[numDimensions];
-        return pathQuery(record,numDimensions, indices, f);
+        return pathQuery(record, f);
     }
 
-    private int pathQuery(int[] queryRecord, int numDimensions, int[] indices, List<Edge> f) {
+    private int pathQuery(int[] queryRecord, List<Edge> f) {
         double sum = 0;
 //        int[][] k = new int[d][numAttributes];
-        while (true) {
-            double product_p = 0;
-            for (Edge edge : f) {
-                int s = edge.getS();
-                int t = edge.getT();
-                if (s == t) {
-                    product_p = (double) margSketches[s].query(queryRecord[s])/N;
-                } else {
-                    double jointFreq = (double) sketches[sketch_idx(s, t)].query(queryRecord[s], queryRecord[t]) / N;
-                    double denominator = (double) margSketches[s].query(queryRecord[s])/N;
-                    product_p *= jointFreq / denominator;
+        double product_p = 0;
+        for (Edge edge : f) {
+            int s = edge.getS();
+            int t = edge.getT();
+            if (s == t) {
+                product_p = margSketches[s].query(queryRecord[s]);
+            } else {
+                double jointFreq = sketches[sketch_idx(s, t)].query(queryRecord[s], queryRecord[t]);
+                double denominator = margSketches[s].query(queryRecord[s]);
+                if (denominator == 0) {
+                    denominator = 1e-12;
                 }
-            }
-            if (product_p > 0) {
-                sum += product_p;
-            }
-
-            int pos = numDimensions - 1;
-            while (pos >= 0) {
-                indices[pos]++;
-                if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
-                    break;
-                }
-                indices[pos] = 0;
-                pos--;
-            }
-
-            if (pos < 0) {
-                break; // all combinations exhausted
+                product_p *= jointFreq / denominator;
             }
         }
-        return (int) (N * sum);
+        if (product_p > 0) {
+            sum += product_p;
+        }
+        return (int) (sum);
     }
 
     public int memoryUsage() {
@@ -181,32 +169,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
      * Find path between two nodes in a tree using BFS.
      */
 
-    List<Edge> buildFactorization(Set<Integer> subtree, int root) {
-        List<Edge> factors = new ArrayList<>();
-        boolean[] visited = new boolean[numAttributes];
-        Deque<Integer> stack = new ArrayDeque<>();
-        // if root not in query, try something else of subtree
-        //no root in all pairwise
-        stack.push(root);
-        visited[root] = true;
-        factors.add(new Edge(root, root));
-
-
-        while (!stack.isEmpty()) {
-            int u = stack.pop();
-            for (int v =0; v < numAttributes; v++) {
-                if (subtree.contains(v) && !visited[v]) {
-                    visited[v] = true;
-                    stack.push(v);
-                    factors.add(new Edge(Math.min(v,u), Math.max(v,u)));
-                }
-            }
-        }
-        return factors;
-    }
-
-    private int[] getParams(int ram, int numAttributes) {
-        int d = 5;
+    private int[] getParams(int ram, int numAttributes, int d) {
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes * numAttributes/2 - numAttributes/2 + numAttributes;
         int cells = ram / 4;

@@ -6,6 +6,7 @@ import org.utils.Record;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 public class ChowLiu {
 
@@ -66,10 +67,46 @@ public class ChowLiu {
         return tree;
     }
 
+    public static List<Edge> chowLiuWithPredicates(double[][] MI, Set<Integer> active, int numAttributes) {
+        List<EdgeWithWeight> edges = new ArrayList<>();
 
-    static List<Edge> computeExactMutualInformation(int[][] data) {
+        for (double[] doubles : MI) {
+            if (active.contains((int) doubles[0]) && active.contains((int) doubles[1]))
+                edges.add(new EdgeWithWeight((int) doubles[0], (int) doubles[1], doubles[2]));
+        }
+        // sort by descending MI
+        edges.sort((a, b) -> Double.compare(b.weight, a.weight));
+
+        DSU dsu = new DSU(numAttributes);
+        List<Edge> tree = new ArrayList<>();
+
+        if (edges.size() ==1) {
+            tree.add(new Edge(edges.get(0).u, edges.get(0).v));
+            return tree;
+        }
+        for (EdgeWithWeight e : edges) {
+            if (dsu.union(e.u, e.v)) {
+                tree.add(new  Edge(e.u, e.v));
+                if (tree.size() == numAttributes - 1) break;
+            }
+        }
+        return tree;
+    }
+
+
+    static List<Edge> computeChowLiu(double[][] MIs, int numAttributes) {
         // goal: compute exact chow liu tree.
 
+        List<Edge> chowLiuTree = chowLiu(MIs, numAttributes);
+        for (Edge e : chowLiuTree) {
+            System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
+        }
+        // get max span tree for ChowLiu:
+        return chowLiuTree;
+
+    }
+
+    public static double[][] computeMIs(int[][] data) {
         double[][] MIs = new double[(data[0].length*data[0].length-data[0].length)/2][3];
         int count = 0;
         for (int i = 0; i < data[0].length; i++) {
@@ -85,8 +122,12 @@ public class ChowLiu {
             MIs[i][2] = computeMI(data, (int) MIs[i][0], (int) MIs[i][1]);
             System.out.println("MI " + MIs[i][0] + " , " + MIs[i][1] +" = " + MIs[i][2]);
         }
+        return MIs;
+    }
 
-        List<Edge> chowLiuTree = chowLiu(MIs, data[0].length);
+    public static List<Edge> computeChowLiuWithPredicates(double[][] MIs, Set<Integer> active, int numAttributes) {
+        // goal: compute exact chow liu tree.
+        List<Edge> chowLiuTree = chowLiuWithPredicates(MIs, active, numAttributes);
         for (Edge e : chowLiuTree) {
             System.out.printf("Edge (%d, %d)", e.getS(), e.getT());
         }
@@ -94,6 +135,7 @@ public class ChowLiu {
         return chowLiuTree;
 
     }
+
     private static double computeMI(int[][] data, int v1, int v2) {
         int N = data.length;
         HashMap<Integer, Integer> uniqueV1 = new HashMap<>();
