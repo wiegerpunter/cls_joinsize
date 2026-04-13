@@ -48,7 +48,6 @@ public class Main {
             int[] exactAnswer = Q.getExactAnswer();
             double[][] MIs = computeMIs(data);
             List<Edge> chowLiuTree = computeChowLiu(MIs, data[0].length);
-
             RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, MIs, chowLiuTree, config.maxNumPredicates[i]);
         }
 

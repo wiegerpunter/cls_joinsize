@@ -21,11 +21,14 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int w;
     private final int[][] seeds;
     private final int[][] hashes;
-    private final int mask;
     private final double[][] MIs;
 
-    public ChowMinAllPairs(int numAttributes, int depth, int ram, double[][] MIs) {
-        this.setting = "ChowM2DAllPairs";
+    public ChowMinAllPairs(int numAttributes, int depth, int ram, double[][] MIs, boolean estMIs) {
+        if (estMIs) {
+            this.setting = "ChowM2DAllPairs_estMIs";
+        } else {
+            this.setting = "ChowM2DAllPairs";
+        }
         this.ram = ram;
         this.numAttributes = numAttributes;
         this.MIs = MIs;
@@ -45,7 +48,29 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
         }
         hashes = new int[numAttributes][d];
-        mask = w - 1;
+    }
+
+    public ChowMinAllPairs(int numAttributes, int depth, int ram) {
+        MIs = new double[0][0];
+        this.setting = "ChowM2DAllPairs";
+        this.ram = ram;
+        this.numAttributes = numAttributes;
+        int[] params = getParams(ram, numAttributes, depth);
+        this.d = params[0];
+        this.w = params[1];
+        sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
+        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
+            for (int a2 = a1+1; a2<numAttributes; a2++) {
+                sketches[sketch_idx(a1, a2)] = new TWODCM(d, w, a1, a2);
+            }
+        }
+        seeds = new int[numAttributes][d];
+        for (int i = 0; i < numAttributes; i++) {
+            for (int j = 0; j < seeds[i].length; j++) {
+                seeds[i][j] = j + i;
+            }
+        }
+        hashes = new int[numAttributes][d];
     }
 
     private int sketch_idx(int a1, int a2) {
@@ -75,7 +100,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
 
         for (int i = 0; i < d; i++) {
-            hashes[i] = mix(attrValue, seeds[i], mask);
+            hashes[i] = mix(attrValue, seeds[i], w);
         }
     }
     public void add(int[] record) {
@@ -120,6 +145,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
         return queryFactors(f, record, attrsInPath);
     }
+
 
     public int numLatent(int[] record) {
         return 0;
@@ -205,6 +231,31 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             System.out.println("q 0");
         }
         return (int) (sum);
+    }
+
+    public double[][] estimateMIs() {
+        double[][] MIs = new double[numAttributes*(numAttributes-1)/2][3];
+        for (int a1 = 0; a1 < numAttributes-1; a1++) {
+            for (int a2 = a1+1; a2 < numAttributes; a2++) {
+                int sketch_idx = sketch_idx(a1, a2);
+                double mi = estMI(a1, a2, sketch_idx);
+                MIs[sketch_idx] = new double[]{a1, a2, mi};
+            }
+        }
+        return MIs;
+    }
+
+    private double estMI(int a1, int a2, int sketch_idx) {
+        double mi = 0;
+        for (int w1 = 0; w1 < this.w; w1++) {
+            double marg1 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a1, w1);
+            for (int w2 = 0; w2 < this.w; w2++) {
+                double joint = this.sketches[sketch_idx].jointCodomain(w1, w2);
+                double marg2 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a2, w2);
+                mi += joint * Math.log(joint / (marg1 * marg2));
+            }
+        }
+        return mi;
     }
 
     void constructDimensions(int[] record, HashSet<Integer> attrsInPath) {

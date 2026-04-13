@@ -27,10 +27,11 @@ public class RunExperiment {
 //
 //            CM2D naiveMin2D = new CM2D(config.cardinalities.length, ram);
 //            runSynopsis(naiveMin2D, data, queries, exactAnswer);
-            if (maxNumPredicates == 1) {
-                SingleCountMins cm = new SingleCountMins(data[0].length, ram);
-                runSynopsis(cm, data, queries, exactAnswer);
-            }
+
+//            if (maxNumPredicates == 1) {
+//                SingleCountMins cm = new SingleCountMins(data[0].length, ram);
+//                runSynopsis(cm, data, queries, exactAnswer);
+//            }
 
 //            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
@@ -41,7 +42,13 @@ public class RunExperiment {
             }
 
             for (int j = 0; j < config.num_rows.length; j++) {
-                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, MIs);
+                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, MIs, false);
+                runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+            }
+
+            for (int j = 0; j < config.num_rows.length; j++) {
+                double[][] estimatedMIs = estimateMIs(data, config.num_rows[j], ram);
+                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, estimatedMIs, true);
                 runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
             }
 
@@ -50,11 +57,19 @@ public class RunExperiment {
                 runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
             }
 
-            ReservoirSample rs = new ReservoirSample(ram, data[0].length, config.seed+5);
-            runSynopsis(rs,  data, queries, exactAnswer);
+//            ReservoirSample rs = new ReservoirSample(ram, data[0].length, config.seed+5);
+//            runSynopsis(rs,  data, queries, exactAnswer);
         }
+//
+//        PlotRunner.main(new String[]{CSV_FILE_NAME});
+    }
 
-        PlotRunner.main(new String[]{CSV_FILE_NAME});
+    private double[][] estimateMIs(int[][] data, int numRow, int ram) {
+        ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, numRow, ram);
+        for (int[] datum : data) {
+            ChowLiuMinAllPairs.add(datum);
+        }
+        return ChowLiuMinAllPairs.estimateMIs();
     }
 
 
@@ -86,12 +101,12 @@ public class RunExperiment {
         stats(exactAnswer, estimateNaiveMin, errorNaiveMin, numLatentAttrs, queryTime);
         int memUsage = nm.memoryUsage();
         writeResults(nm.setting, queries, estimateNaiveMin, exactAnswer, errorNaiveMin,
-                memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.getNumSamples(), nm.ram);
+                memUsage,numLatentAttrs,ingestTime, queryTime, nm.getd(), nm.getw(), nm.getNumSamples(), nm.ram, data[0].length, data.length);
     }
 
     private void writeResults(String setting, int[][] queries, int[] estimates, int[] exactAnswers,
                               int[] errors, int memUsage,int[] numLatentAttrs, int ingestTime, int[] queryTime,
-                              int d, int w, int numSamples, int ram) throws Exception {
+                              int d, int w, int numSamples, int ram, int numAttributes, int N) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -99,11 +114,11 @@ public class RunExperiment {
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","numSamples","ram","query","numPredicates"};
+            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","numSamples","ram","query","numPredicates","numAttributes","N"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[17];
+            String[] result = new String[19];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
@@ -121,6 +136,8 @@ public class RunExperiment {
             result[14] = String.valueOf(ram);
             result[15] = Arrays.toString(queries[i]);
             result[16] = numPredicates(queries[i]);
+            result[17] = String.valueOf(numAttributes);
+            result[18] = String.valueOf(N);
 
             writer.writeNext(result);
         }

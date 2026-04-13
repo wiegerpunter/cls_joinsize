@@ -127,33 +127,21 @@ public class TWODCM {
 
 
     public void computeHashes(int attrValue, int[] hashes, boolean source) {
-        final int mask = width - 1;
+//        final int mask = width - 1;
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsS[i], mask);
+                hashes[i] = mix(attrValue, seedsS[i], width);
             }
         } else {
 
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsT[i], mask);
+                hashes[i] = mix(attrValue, seedsT[i], width);
             }
         }
     }
     static public int hash(int attrValue, int attribute, int row, int width) {
         int seed = row + attribute;
-        return mix(attrValue, seed, (width -1));
-    }
-
-    public void computeHashes(HashFunction[] hashFunctions, int attrValue, int[] hashes) {
-        for (int i = 0; i < depth; i++) {
-            int hash = hashFunctions[i].hashInt(attrValue).asInt();
-            hashes[i] = fastPositiveModulo(hash, width);
-        }
-    }
-    // Fast modulo for positive results
-    private static int fastPositiveModulo(int x, int mod) {
-        int r = x & (mod - 1); // works if mod is a power of two
-        return mod == (mod & -mod) ? r : (x % mod + mod) % mod;
+        return mix(attrValue, seed, width);
     }
 
     public int memory() {
@@ -186,6 +174,17 @@ public class TWODCM {
                 if (minEstimate > estimate) {
                     minEstimate = estimate;
                 }
+        }
+        return minEstimate;
+    }
+
+    public int jointCodomain(int w1, int w2) {
+        int minEstimate = Integer.MAX_VALUE;
+        for (int j = 0; j < this.depth; j++) {
+            int estimate = CMR[idx(j, w1, w2)];
+            if (minEstimate > estimate) {
+                minEstimate = estimate;
+            }
         }
         return minEstimate;
     }
@@ -234,6 +233,26 @@ public class TWODCM {
         }
 
         return marginal(predIdxs, condAttr, rows);
+    }
+
+    public int queryMarginalCodomain(int condAttr, int w1) {
+        int minEstimate = Integer.MAX_VALUE;
+        for (int j = 0; j < depth; j++) {
+            int sumRowEst =0;
+            if (attrS==condAttr) {
+                for (int i = 0; i < width; i++) {
+                    sumRowEst+= CMR[idx(j, w1, i)];
+                }
+            } else {
+                for (int i = 0; i<width; i++){
+                    sumRowEst+= CMR[idx(j, i, w1)];
+                }
+            }
+            if (sumRowEst < minEstimate) {
+                minEstimate = sumRowEst;
+            }
+        }
+        return minEstimate;
     }
 
     public int queryMarginal(int predicate, int attr) {

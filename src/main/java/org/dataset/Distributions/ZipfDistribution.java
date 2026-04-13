@@ -6,6 +6,7 @@ public class ZipfDistribution implements Distribution {
     private final double[] cdf;
 
     public ZipfDistribution(int k, double skew) {
+
         this.cdf = new double[k];
         double sum = 0.0;
         for (int i = 1; i <= k; i++) sum += 1.0 / Math.pow(i, skew);

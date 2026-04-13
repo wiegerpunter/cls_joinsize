@@ -31,7 +31,7 @@ public class DatasetGenerator {
 
     public static int sampleCardinality(Random rng) {
         double p = rng.nextDouble();
-        if (p < 0.5) return rng.nextBoolean() ? 2 : 3;
+//        if (p < 0.5) return rng.nextBoolean() ? 2 : 3;
         if (p < 0.8) return 5 + rng.nextInt(16);
         if (p < 0.95) return 50 + rng.nextInt(150);
         return 1000 + rng.nextInt(9000);
@@ -43,7 +43,7 @@ public class DatasetGenerator {
         Attribute[] attrs = new Attribute[numAttributes];
         for (int i = 0; i < numAttributes; i++) {
             int k = sampleCardinality(rng);
-            attrs[i] = new Attribute(i, k, new ZipfDistribution(k, 1.5));
+            attrs[i] = new Attribute(i, k, new ZipfDistribution(k, 1));
         }
 
         DependencyModel model;

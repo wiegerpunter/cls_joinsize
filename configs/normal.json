@@ -6,7 +6,7 @@
   "modelType": "ClusteredModel",
   "dataDistribution": "Corr",
   "statsData": false,
-  "maxNumPredicates": [6],
+  "maxNumPredicates": [3],
   "printData": false,
   "numClusters": 2,
   "num_rows": [3,5]
