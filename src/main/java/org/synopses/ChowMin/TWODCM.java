@@ -178,15 +178,9 @@ public class TWODCM {
         return minEstimate;
     }
 
-    public int jointCodomain(int w1, int w2) {
-        int minEstimate = Integer.MAX_VALUE;
-        for (int j = 0; j < this.depth; j++) {
-            int estimate = CMR[idx(j, w1, w2)];
-            if (minEstimate > estimate) {
-                minEstimate = estimate;
-            }
-        }
-        return minEstimate;
+    public int jointCodomain(int w1, int w2, int j) {
+        return CMR[idx(j, w1, w2)];
+
     }
 
     public int[] getCodomain(int attr, int predicate) {
@@ -235,22 +229,20 @@ public class TWODCM {
         return marginal(predIdxs, condAttr, rows);
     }
 
-    public int queryMarginalCodomain(int condAttr, int w1) {
+    public int queryMarginalCodomain(int condAttr, int w1, int j) {
         int minEstimate = Integer.MAX_VALUE;
-        for (int j = 0; j < depth; j++) {
-            int sumRowEst =0;
-            if (attrS==condAttr) {
-                for (int i = 0; i < width; i++) {
-                    sumRowEst+= CMR[idx(j, w1, i)];
-                }
-            } else {
-                for (int i = 0; i<width; i++){
-                    sumRowEst+= CMR[idx(j, i, w1)];
-                }
+        int sumRowEst =0;
+        if (attrS==condAttr) {
+            for (int i = 0; i < width; i++) {
+                sumRowEst+= CMR[idx(j, w1, i)];
             }
-            if (sumRowEst < minEstimate) {
-                minEstimate = sumRowEst;
+        } else {
+            for (int i = 0; i<width; i++){
+                sumRowEst+= CMR[idx(j, i, w1)];
             }
+        }
+        if (sumRowEst < minEstimate) {
+            minEstimate = sumRowEst;
         }
         return minEstimate;
     }

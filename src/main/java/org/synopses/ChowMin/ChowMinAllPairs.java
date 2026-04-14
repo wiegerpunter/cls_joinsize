@@ -1,5 +1,6 @@
 package org.synopses.ChowMin;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
@@ -234,25 +235,36 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     public double[][] estimateMIs() {
-        double[][] MIs = new double[numAttributes*(numAttributes-1)/2][3];
+//        double[] MIs = new HashMap<>();
+        double[][] MIs = new double[numAttributes*(numAttributes-1)/2][2+this.d];
         for (int a1 = 0; a1 < numAttributes-1; a1++) {
             for (int a2 = a1+1; a2 < numAttributes; a2++) {
                 int sketch_idx = sketch_idx(a1, a2);
-                double mi = estMI(a1, a2, sketch_idx);
-                MIs[sketch_idx] = new double[]{a1, a2, mi};
+                double[] MIsList = new double[this.d];
+
+                for (int j = 0; j < d; j++) {
+                    double mi = estMI(a1, a2, sketch_idx, j);
+                    MIsList[j] = mi;
+                }
+                Arrays.sort(MIsList);
+                double medianMI = MIsList[MIsList.length/2];
+                MIs[sketch_idx] = new double[]{a1,a2,medianMI};
             }
         }
         return MIs;
     }
 
-    private double estMI(int a1, int a2, int sketch_idx) {
+    private double estMI(int a1, int a2, int sketch_idx, int j) {
         double mi = 0;
         for (int w1 = 0; w1 < this.w; w1++) {
-            double marg1 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a1, w1);
+            double marg1 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a1, w1, j);
             for (int w2 = 0; w2 < this.w; w2++) {
-                double joint = this.sketches[sketch_idx].jointCodomain(w1, w2);
-                double marg2 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a2, w2);
-                mi += joint * Math.log(joint / (marg1 * marg2));
+                double joint = this.sketches[sketch_idx].jointCodomain(w1, w2,j);
+                double marg2 = this.sketches[sketch_idx_first(a2)].queryMarginalCodomain(a2, w2,j);
+                double mi_iter= joint/N * Math.log((joint/N )/ (marg1/N * marg2/N));
+                if (!Double.isNaN(mi_iter)) {
+                    mi += mi_iter;
+                }
             }
         }
         return mi;

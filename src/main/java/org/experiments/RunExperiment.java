@@ -10,6 +10,7 @@ import org.utils.Edge;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.sql.SQLSyntaxErrorException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -36,20 +37,19 @@ public class RunExperiment {
 //            ChowM2D ChowLiuMin2D = new ChowM2D(config.numAttributes, ram, chowLiuTree);
 //            runSynopsis(ChowLiuMin2D, data, queries, exactAnswer);
 //
-            for (int j = 0; j < config.num_rows.length; j++) {
-                ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(data[0].length, config.num_rows[j], ram, chowLiuTree);
-                runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
-            }
+//            for (int j = 0; j < config.num_rows.length; j++) {
+//                ChowM2DVarElim ChowLiuMin2DVarElim = new ChowM2DVarElim(data[0].length, config.num_rows[j], ram, chowLiuTree);
+//                runSynopsis(ChowLiuMin2DVarElim, data, queries, exactAnswer);
+//            }
 
             for (int j = 0; j < config.num_rows.length; j++) {
                 ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, MIs, false);
                 runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
-            }
 
-            for (int j = 0; j < config.num_rows.length; j++) {
                 double[][] estimatedMIs = estimateMIs(data, config.num_rows[j], ram);
-                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, estimatedMIs, true);
-                runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+                differenceMIs(MIs, estimatedMIs);
+                ChowMinAllPairs ChowLiuMinAllPairsEstimated = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, estimatedMIs, true);
+                runSynopsis(ChowLiuMinAllPairsEstimated, data, queries, exactAnswer);
             }
 
             for (int j = 0; j < config.num_rows.length; j++) {
@@ -62,6 +62,33 @@ public class RunExperiment {
         }
 //
 //        PlotRunner.main(new String[]{CSV_FILE_NAME});
+    }
+
+    private void differenceMIs(double[][] mIs, double[][] estimatedMIs) {
+        // Difference in MIs itself:
+            // 1. get total MIs
+            // 2. per pair, normalize by total.
+            // 3. MI - estMI
+            // 4. print
+        double totalExactMI = totalMI(mIs);
+        double totalEstMI = totalMI(estimatedMIs);
+        double[] differences = new double[mIs.length];
+        double sumDifference = 0;
+        for (int i = 0; i < mIs.length; i++) {
+            differences[i] = mIs[i][2]/totalExactMI - estimatedMIs[i][2]/totalEstMI;
+            sumDifference += Math.abs(differences[i]);
+            System.out.println("MI: " + mIs[i][0] + ", " + mIs[i][1] + "=  " + mIs[i][2] +" , estimate: " + estimatedMIs[i][2] + " Difference " +  + differences[i]);
+        }
+
+        System.out.println("Total absolute difference: " + sumDifference);
+    }
+
+    double totalMI(double[][] mIs) {
+        double totalMI = 0;
+        for (double[] d: mIs) {
+            totalMI += d[2];
+        }
+        return totalMI;
     }
 
     private double[][] estimateMIs(int[][] data, int numRow, int ram) {
