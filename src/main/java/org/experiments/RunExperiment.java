@@ -57,6 +57,11 @@ public class RunExperiment {
                 runSynopsis(ChowLiuCountAllPairs, data, queries, exactAnswer);
             }
 
+
+            boolean useBufferInQuery = true;
+            double ingestBuffer = 0.1;
+            aSH ash = new aSH(ram, data[0].length, useBufferInQuery, ingestBuffer, config.seed+3);
+            runSynopsis(ash, data, queries, exactAnswer);
 //            ReservoirSample rs = new ReservoirSample(ram, data[0].length, config.seed+5);
 //            runSynopsis(rs,  data, queries, exactAnswer);
         }
