@@ -25,7 +25,7 @@ public class DuckDBDataset {
             stmt.execute(createSQL.toString());
         }
 
-        DuckDBAppender appender = new DuckDBAppender(conn, "main", "dataset");
+        DuckDBAppender appender = conn.createAppender("main", "dataset");
         for (int[] row : dataset) {
             appender.beginRow();
             for (int i = 0; i < numAttributes; i++) {

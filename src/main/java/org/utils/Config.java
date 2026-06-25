@@ -1,6 +1,7 @@
 package org.utils;
 
 public class Config {
+    public String datasetType;
     public int N;
     public int[] numAttributes;
     public int[] maxNumPredicates;
@@ -17,6 +18,7 @@ public class Config {
     public double latentInfl;
     public int latentCard;
     public int[] num_rows;
+    public double[] ingest_buffers;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

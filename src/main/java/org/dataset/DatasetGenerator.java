@@ -131,8 +131,7 @@ public class DatasetGenerator {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute(createSQL.toString());
         }
-
-        DuckDBAppender appender = new DuckDBAppender(conn, "main", "dataset");
+        DuckDBAppender appender = conn.createAppender("main", "dataset");
         for (int[] row : dataset) {
             appender.beginRow();
             for (int i = 0; i < numAttributes; i++) {
@@ -158,7 +157,7 @@ public class DatasetGenerator {
             stmt.execute(createSQL.toString());
         }
 
-        DuckDBAppender appender = new DuckDBAppender((DuckDBConnection) conn, "main", "queries");
+        DuckDBAppender appender = ((DuckDBConnection) conn).createAppender("main","queries");
 
         for (int qid = 0; qid < queries.length; qid++) {
             appender.beginRow();
