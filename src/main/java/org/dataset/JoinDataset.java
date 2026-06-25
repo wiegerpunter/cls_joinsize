@@ -4,18 +4,16 @@ import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 class Query {
     String query_name;
-    String query_text;
+    final String query_text;
     int query_result;
     Query(String query_name, String query_text){
         this.query_name = query_name;
@@ -60,10 +58,26 @@ public class JoinDataset {
     public JoinDataset(DuckDBConnection con, Config config) throws SQLException, IOException {
         this.con = con;
         this.queries = this.readQueries(config);
-
+        getExactAnswers();
+        for (Query q: queries) {
+            System.out.println("Query " + q.query_name + " has answer: " + q.query_result);
+        }
         this.getTableNames();
         Map<String, Set<String>> eqjkg = this.getEquivalentJoinKeyGroups();
      }
+
+    private void getExactAnswers() throws SQLException {
+        // execute query on duckdb
+        for (Query q: queries) {
+            try (Statement stmt = con.createStatement();
+                 ResultSet rs = stmt.executeQuery(q.query_text)) {
+
+                while (rs.next()) {
+                    q.query_result = rs.getInt(1);
+                }
+            }
+        }
+    }
 
     private Query[] readQueries(Config config) throws IOException {
         // read all .sql queries in config.queryPath;
@@ -71,14 +85,17 @@ public class JoinDataset {
 
         File[] files = dir.listFiles((d, name)->name.endsWith(".sql"));
         assert files != null;
-        Query[] queries = new Query[files.length];
+        Query[] queries = new Query[files.length - 6];
         int i = 0;
         for (File f : files){
             BufferedReader br = new BufferedReader(new FileReader(f.getAbsoluteFile()));
-
-            Query q = new Query(f.getName(), br.readLine());
-            queries[i] = q;
-            i++;
+            if (f.getName().contains("fkindexes") || f.getName().contains("schema") || f.getName().contains("15")) {
+                continue;
+            } else {
+                Query q = new Query(f.getName(), br.readLine());
+                queries[i] = q;
+                i++;
+            }
         }
         return queries;
     }
