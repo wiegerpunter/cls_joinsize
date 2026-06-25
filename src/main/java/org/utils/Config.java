@@ -2,6 +2,8 @@ package org.utils;
 
 public class Config {
     public String datasetType;
+    public String queryPath;
+    public String duckdbPath;
     public int N;
     public int[] numAttributes;
     public int[] maxNumPredicates;

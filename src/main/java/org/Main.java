@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.dataset.DataGenerator;
 import org.dataset.DatasetGenerator;
 import org.dataset.DuckDBDataset;
+import org.dataset.JoinDataset;
 import org.duckdb.DuckDBConnection;
 import org.experiments.RunExperiment;
 import org.synopses.*;
@@ -57,19 +58,12 @@ public class Main {
                     RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, MIs, chowLiuTree, config.maxNumPredicates[i]);
                 }
             case "imdb":
-                String dbPath = "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb";
-
                 DuckDBConnection con =
                         (DuckDBConnection) DriverManager.getConnection(
-                                "jdbc:duckdb:" + dbPath
+                                "jdbc:duckdb:" + config.duckdbPath
                         );
 
-                var rs = con.createStatement()
-                        .executeQuery("SHOW TABLES");
-
-                while (rs.next()) {
-                    System.out.println(rs.getString(1));
-                }
+                JoinDataset d = new JoinDataset(con, config);
 
                 con.close();
         }
