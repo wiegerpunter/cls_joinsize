@@ -22,6 +22,7 @@ import org.dataset.DuckDBDataset;
 import org.dataset.JoinDataset;
 import org.duckdb.DuckDBConnection;
 import org.experiments.RunExperiment;
+import org.experiments.RunJoinExperiment;
 import org.synopses.*;
 import org.utils.Config;
 import org.utils.Edge;
@@ -64,6 +65,8 @@ public class Main {
                         );
 
                 JoinDataset d = new JoinDataset(con, config);
+
+                RunJoinExperiment rje = new RunJoinExperiment(config, d, con);
 
                 con.close();
         }
