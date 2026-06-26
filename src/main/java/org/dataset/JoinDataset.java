@@ -4,9 +4,7 @@ import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
 import java.io.*;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,11 +13,51 @@ class Query {
     String query_name;
     final String query_text;
     int query_result;
+    SynopsisQuery syn_query;
     Query(String query_name, String query_text){
         this.query_name = query_name;
         this.query_text = query_text;
     }
+
+    public void buildSynQuery() {
+        // convert sql query to query that can be executed on a synopsis
+        // take join queries into account here.
+        this.syn_query = fromSQL(query_text);
+    }
+
+    private SynopsisQuery fromSQL(String sql) {
+        SynopsisQuery synQuery = new SynopsisQuery();
+        Pattern pred =
+                Pattern.compile(
+                        "(\\w+\\.\\w+)\\s*=\\s*('.*?'|\\d+|\\w+\\.\\w+)"
+                );
+
+        Matcher m = pred.matcher(sql);
+        while (m.find()) {
+            // TODO: convert this to something useful for the execution, First think of how this execution should work.
+        }
+    }
 }
+
+class SynopsisQuery {
+    Set<String> tables = new HashSet<>();
+    List<SelectionPredicate> selections = new ArrayList<>();
+    List<JoinPredicate> joins = new ArrayList<>();
+
+}
+
+record SelectionPredicate(
+        String table,
+        String column,
+        String value
+) {}
+
+record JoinPredicate(
+        String leftTable,
+        String leftColumn,
+        String rightTable,
+        String rightColumn
+) {}
 
 class DSU {
     Map<String, String> parent = new HashMap<>();
@@ -53,7 +91,8 @@ public class JoinDataset {
     DuckDBConnection con;
     // Class contains the equivalent join keys, names of all tables,
     Query[] queries;
-    String[] tableNames;
+    public String[] tableNames;
+    public HashMap<String, Integer> numColumnsPerTable;
 
     public JoinDataset(DuckDBConnection con, Config config) throws SQLException, IOException {
         this.con = con;
@@ -166,8 +205,20 @@ public class JoinDataset {
             tableNamesList.add(rs.getString(1));
         }
         tableNames = new String[tableNamesList.size()];
+        numColumnsPerTable = new HashMap<>();
+        String columnQuery = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name=?";
         for (int i = 0; i < tableNamesList.size(); i++) {
             tableNames[i] = tableNamesList.get(i);
+            //number of columns
+            try (PreparedStatement stmt = con.prepareStatement(columnQuery)) {
+                stmt.setString(1, tableNames[i]);
+                try (ResultSet res = stmt.executeQuery()) {
+                    if (res.next()) {
+                        numColumnsPerTable.put(tableNames[i], res.getInt(1));
+                        System.out.println("Table "+ tableNames[i] + " has " + res.getInt(1) + " columns.");
+                    }
+                }
+            }
         }
     }
 
