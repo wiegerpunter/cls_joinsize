@@ -1,24 +1,25 @@
-package org.synopses;
+package org.synopses.RS;
 
-import java.util.Objects;
+import org.synopses.AbstractSynopsis;
+
 import java.util.Random;
 
-public class ReservoirSampleString extends AbstractSynopsis{
-    private final String[][] reservoir;
+public class ReservoirSample extends AbstractSynopsis {
+    private final int[][] reservoir;
     private final int size;
     private int count;
     Random rn;
 
-    public ReservoirSampleString(int ram, int numAttributes, int seed) {
+    public ReservoirSample(int ram, int numAttributes, int seed) {
         setting = "Reservoir Sample";
         this.ram = ram;
         this.size = ram / (4 * numAttributes);
         this.count = 0;
         rn = new Random(seed);
-        reservoir = new String[size][numAttributes];
+        reservoir = new int[size][numAttributes];
     }
 
-    public void add(String[] rec) {
+    public void add(int[] rec) {
         if (count < size){
             reservoir[count] = rec.clone();
         } else{
@@ -30,12 +31,12 @@ public class ReservoirSampleString extends AbstractSynopsis{
         count++;
     }
 
-    public int query(String[] query) {
+    public int query(int[] query) {
         int queryResultCount = 0;
         for (int i = 0; i < size; i++) {
             boolean match = true;
             for (int j = 0; j < query.length; j++) {
-                if (!Objects.equals(query[j], "-1") && !Objects.equals(query[j], reservoir[i][j])) {
+                if (query[j] != -1 && query[j] != reservoir[i][j]) {
                     match = false;
                     break;
                 }
@@ -46,16 +47,6 @@ public class ReservoirSampleString extends AbstractSynopsis{
         }
         // scale result by the size of the reservoir
         return (int) (queryResultCount * (Math.max((double) count /size, 1)));
-    }
-
-    @Override
-    public void add(int[] record) {
-
-    }
-
-    @Override
-    public int query(int[] record) {
-        return 0;
     }
 
     public int memoryUsage() {

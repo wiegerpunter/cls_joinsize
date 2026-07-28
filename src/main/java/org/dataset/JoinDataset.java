@@ -1,5 +1,6 @@
 package org.dataset;
 
+import net.sf.jsqlparser.JSQLParserException;
 import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
@@ -8,56 +9,6 @@ import java.sql.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-class Query {
-    String query_name;
-    final String query_text;
-    int query_result;
-    SynopsisQuery syn_query;
-    Query(String query_name, String query_text){
-        this.query_name = query_name;
-        this.query_text = query_text;
-    }
-
-    public void buildSynQuery() {
-        // convert sql query to query that can be executed on a synopsis
-        // take join queries into account here.
-        this.syn_query = fromSQL(query_text);
-    }
-
-    private SynopsisQuery fromSQL(String sql) {
-        SynopsisQuery synQuery = new SynopsisQuery();
-        Pattern pred =
-                Pattern.compile(
-                        "(\\w+\\.\\w+)\\s*=\\s*('.*?'|\\d+|\\w+\\.\\w+)"
-                );
-
-        Matcher m = pred.matcher(sql);
-        while (m.find()) {
-            // TODO: convert this to something useful for the execution, First think of how this execution should work.
-        }
-    }
-}
-
-class SynopsisQuery {
-    Set<String> tables = new HashSet<>();
-    List<SelectionPredicate> selections = new ArrayList<>();
-    List<JoinPredicate> joins = new ArrayList<>();
-
-}
-
-record SelectionPredicate(
-        String table,
-        String column,
-        String value
-) {}
-
-record JoinPredicate(
-        String leftTable,
-        String leftColumn,
-        String rightTable,
-        String rightColumn
-) {}
 
 class DSU {
     Map<String, String> parent = new HashMap<>();
@@ -90,14 +41,16 @@ class DSU {
 public class JoinDataset {
     DuckDBConnection con;
     // Class contains the equivalent join keys, names of all tables,
-    Query[] queries;
+    private final Query[] queries;
     public String[] tableNames;
     public HashMap<String, Integer> numColumnsPerTable;
+    public HashMap<String, String[]> attrMap;
 
-    public JoinDataset(DuckDBConnection con, Config config) throws SQLException, IOException {
+    public JoinDataset(DuckDBConnection con, Config config) throws SQLException, IOException, JSQLParserException {
         this.con = con;
         this.queries = this.readQueries(config);
         getExactAnswers();
+        assert queries != null;
         for (Query q: queries) {
             System.out.println("Query " + q.query_name + " has answer: " + q.query_result);
         }
@@ -118,28 +71,35 @@ public class JoinDataset {
         }
     }
 
-    private Query[] readQueries(Config config) throws IOException {
+    private Query[] readQueries(Config config) throws IOException, JSQLParserException {
         // read all .sql queries in config.queryPath;
         File dir = new File(config.queryPath);
 
         File[] files = dir.listFiles((d, name)->name.endsWith(".sql"));
         assert files != null;
-        Query[] queries = new Query[files.length - 6];
-        int i = 0;
+        ArrayList<Query> queries = new ArrayList<>();
         for (File f : files){
             BufferedReader br = new BufferedReader(new FileReader(f.getAbsoluteFile()));
             if (f.getName().contains("fkindexes") || f.getName().contains("schema") || f.getName().contains("15")) {
                 continue;
             } else {
                 Query q = new Query(f.getName(), br.readLine());
-                queries[i] = q;
-                i++;
+                if (q.syn_query!=null) {
+                    queries.add(q);
+                }
             }
         }
-        return queries;
+        if (!queries.isEmpty()) {
+            Query[] qs = new Query[queries.size()];
+            for (int i = 0; i<qs.length; i++){
+                qs[i] = queries.get(i);
+            }
+            return qs;
+        }
+        return null;
     }
-    private String normalize(String aliasColumn,
-                     Map<String, String> aliasToTable) {
+    static String normalize(String aliasColumn,
+                            Map<String, String> aliasToTable) {
 
         String[] parts = aliasColumn.split("\\.");
 
@@ -147,10 +107,15 @@ public class JoinDataset {
         String col = parts[1];
 
         String table = aliasToTable.get(alias);
-
+        if (table == null) {
+            throw new RuntimeException(
+                    "Unknown alias: " + alias
+            );
+        }
         return table + "." + col;
     }
-    private Map<String, String> buildAliasMap(String sql) {
+
+    static Map<String, String> buildAliasMap(String sql) {
 
         Map<String, String> map = new HashMap<>();
 
@@ -206,7 +171,9 @@ public class JoinDataset {
         }
         tableNames = new String[tableNamesList.size()];
         numColumnsPerTable = new HashMap<>();
+        attrMap = new HashMap<>();
         String columnQuery = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name=?";
+        String columnNamesQuery = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name=?";
         for (int i = 0; i < tableNamesList.size(); i++) {
             tableNames[i] = tableNamesList.get(i);
             //number of columns
@@ -215,11 +182,32 @@ public class JoinDataset {
                 try (ResultSet res = stmt.executeQuery()) {
                     if (res.next()) {
                         numColumnsPerTable.put(tableNames[i], res.getInt(1));
-                        System.out.println("Table "+ tableNames[i] + " has " + res.getInt(1) + " columns.");
                     }
                 }
             }
+            try (PreparedStatement stmt = con.prepareStatement(columnNamesQuery)) {
+                stmt.setString(1, tableNames[i]);
+                try (ResultSet res = stmt.executeQuery()) {
+                    ArrayList<String> attrs =
+                            new ArrayList<>();
+
+                    while (res.next()) {
+                        attrs.add(
+                                res.getString("column_name")
+                        );
+                    }
+
+                    attrMap.put(
+                            tableNames[i],
+                            attrs.toArray(new String[0])
+                    );
+                }
+            }
         }
+    }
+
+    public Query[] getQueries() {
+        return queries;
     }
 
 

@@ -1,8 +1,11 @@
 package org.experiments;
 
 import org.dataset.JoinDataset;
+import org.dataset.Query;
+import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
-import org.synopses.ReservoirSampleString;
+import org.synopses.RS.RSJoin;
+import org.synopses.RS.ReservoirSampleString;
 import org.utils.Config;
 
 import java.sql.ResultSet;
@@ -22,34 +25,25 @@ public class RunJoinExperiment {
 
         for (int ram : config.ramVals) {
             System.out.println("Starting iteration over " + ram / 1000000 + " MB");
-            HashMap<String, ReservoirSampleString> rsj = new HashMap<>();
-            for (String t : d.tableNames) {
-                System.out.println("Initializing synopsis for table " + t);
-                rsj.put(t, new ReservoirSampleString(ram, d.numColumnsPerTable.get(t), config.seed + 5));
-            }
-            ingestData(rsj);
-
+            RSJoin rsj = new RSJoin();
+            rsj.initialize(d.tableNames, d.attrMap, ram, d.numColumnsPerTable, config);
+            rsj.ingestData(d, con);
+            queryRS(rsj);
         }
     }
 
-    private void ingestData(HashMap<String, ReservoirSampleString> rsj) throws SQLException {
-        // per table, insert all data into right synopsis
-        for (String t : d.tableNames) {
-            String dataQuery = "SELECT * FROM " + t;
-            ReservoirSampleString syn = rsj.get(t);
-            int numColumns = d.numColumnsPerTable.get(t);
-            try (Statement stmt = con.createStatement();
-                ResultSet rs = stmt.executeQuery(dataQuery);
-            ) {
-                while (rs.next()) {
-                    String[] rec = new String[numColumns];
-                    for (int col = 1; col <= numColumns; col++) {
-                        rec[col - 1] = rs.getString(col);
-                    }
-                    syn.add(rec);
-                }
-            }
+
+
+    private void queryRS(RSJoin rsj) {
+        // execute queries in d on reservoir samples
+
+
+        for (Query q : d.getQueries()) {
+            int estimate = rsj.query(q.syn_query);
+            double error = estimate - q.getResult();
+            System.out.println("Query " + q.getName() + " error: " + error + " exact: " + q.getResult() + " estimate: " +estimate);
         }
+
     }
 
 
