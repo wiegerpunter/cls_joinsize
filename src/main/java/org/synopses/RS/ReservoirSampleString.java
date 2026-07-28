@@ -1,5 +1,9 @@
 package org.synopses.RS;
 
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.schema.Column;
 import org.dataset.SynopsisQuery;
 import org.synopses.AbstractSynopsis;
 
@@ -99,7 +103,7 @@ public class ReservoirSampleString extends AbstractSynopsis {
         return ram;
     }
 
-    public ReservoirSampleString filtered(List<SynopsisQuery.SelectionPredicate> spList) {
+    public ReservoirSampleString filtered(List<EqualsTo> spList) {
         if (spList.isEmpty()) {
             return new ReservoirSampleString(this);
         }
@@ -109,9 +113,13 @@ public class ReservoirSampleString extends AbstractSynopsis {
                 continue;
             }
             boolean add = true;
-            for (SynopsisQuery.SelectionPredicate sp : spList) {
-                int col = getIdCol(sp.column());
-                if (!reservoir[i][col].equals(sp.value())) {
+            for (EqualsTo sp : spList) {
+                int col = getIdCol(((Column) sp.getLeftExpression()).getColumnName());
+                if (reservoir[i][col].isEmpty()) { // check if null
+                    add=false;
+                    break;
+                }
+                if (!reservoir[i][col].equals(((StringValue) sp.getRightExpression()).getValue())) {
                     add = false;
                     break;
                 }

@@ -108,14 +108,11 @@ public class Query {
                     this.syn_query.joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-                    this.syn_query.selections.add(expr);
+                    this.syn_query.selections.add(eq);
                 }
 
-            } else {
-                // IN, LIKE, BETWEEN, >, <, etc.
-                // TODO: skip
-                this.syn_query.selections.add(expr);
             }
+            // Skip: IN, LIKE, BETWEEN, >, <, etc.
         }
     }
     public int getResult() {

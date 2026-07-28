@@ -55,7 +55,7 @@ public class RSJoin {
         HashMap<String, ReservoirSampleString> querySample = new HashMap<>();
         double scale = 1;
         for (Table table : synQuery.tables) {
-            ReservoirSampleString rsCopy = rsj.get(table.getName()).filtered(synQuery.getSelectionPredicatesPerTable(table.getName()));
+            ReservoirSampleString rsCopy = rsj.get(table.getName()).filtered(synQuery.getSelectionPredicatesPerTable(table));
             // apply local predicates
 
             querySample.put(table.getName(), rsCopy);
@@ -86,19 +86,13 @@ public class RSJoin {
         // initialize with first table
         //------------------------------------
 
-        String first =
-                samples.keySet()
+        String first = samples.keySet()
                         .iterator()
                         .next();
 
-        for (String[] row :
-                samples.get(first).reservoir) {
-
-            Map<String,String[]> x =
-                    new HashMap<>();
-
+        for (String[] row : samples.get(first).reservoir) {
+            Map<String,String[]> x = new HashMap<>();
             x.put(first,row);
-
             tuples.add(x);
         }
 
@@ -106,43 +100,21 @@ public class RSJoin {
         // join remaining tables
         //------------------------------------
 
-        for (String table :
-                samples.keySet()) {
-
-            if (table.equals(first))
-                continue;
-
-            ReservoirSampleString rs =
-                    samples.get(table);
-
-            List<Map<String,String[]>>
-                    next =
-                    new ArrayList<>();
-
-            for (Map<String,String[]> partial :
-                    tuples) {
-
-                for (String[] candidate :
-                        rs.reservoir) {
-
-                    if (
-                            satisfies(
-                                    partial,
-                                    table,
-                                    candidate,
-                                    joins,
-                                    samples
-                            )
-                    ) {
-
-                        Map<String,String[]> copy =
-                                new HashMap<>(partial);
-
-                        copy.put(
-                                table,
-                                candidate
-                        );
-
+        for (String table : samples.keySet()) {
+            if (table.equals(first)) continue;
+            ReservoirSampleString rs = samples.get(table);
+            List<Map<String,String[]>> next = new ArrayList<>();
+            for (Map<String,String[]> partial : tuples) {
+                for (String[] candidate : rs.reservoir) {
+                    if ( satisfies(
+                            partial,
+                            table,
+                            candidate,
+                            joins,
+                            samples
+                    ) ) {
+                        Map<String,String[]> copy = new HashMap<>(partial);
+                        copy.put(table, candidate);
                         next.add(copy);
                     }
                 }
@@ -157,7 +129,7 @@ public class RSJoin {
         return tuples.size();
     }
     private boolean satisfies(
-            Map<String,String[]> joined,
+            Map<String,String[]> partial,
             String newTable,
             String[] newRow,
             List<SynopsisQuery.JoinPredicate> joins,
@@ -167,58 +139,33 @@ public class RSJoin {
         for (SynopsisQuery.JoinPredicate j : joins) {
 
             boolean right =
-                    j.rightTable()
-                            .equals(newTable);
+                    j.right().getTableName().equals(newTable);
 
             boolean left =
-                    j.leftTable()
+                    j.left().getTableName()
                             .equals(newTable);
 
             if (!right && !left)
                 continue;
 
-            String existingTable =
-                    left
-                            ? j.rightTable()
-                            : j.leftTable();
+            String existingTable = left ? j.right().getTableName() : j.left().getTableName();
 
-            if (!joined.containsKey(
-                    existingTable
-            )) {
+            if (!partial.containsKey(existingTable)) {
                 continue;
             }
 
-            String[] existing =
-                    joined.get(
-                            existingTable
-                    );
+            String[] existing = partial.get(existingTable);
 
-            String existingCol =
-                    left
-                            ? j.rightColumn()
-                            : j.leftColumn();
+            String existingCol = left ? j.right().getColumnName() : j.left().getColumnName();
 
-            String newCol =
-                    left
-                            ? j.leftColumn()
-                            : j.rightColumn();
+            String newCol = left ? j.left().getColumnName() : j.right().getColumnName();
 
             int e =
-                    samples
-                            .get(existingTable)
-                            .getIdCol(existingCol);
+                    samples.get(existingTable).getIdCol(existingCol);
 
-            int n =
-                    samples
-                            .get(newTable)
-                            .getIdCol(newCol);
+            int n = samples.get(newTable).getIdCol(newCol);
 
-            if (
-                    !existing[e]
-                            .equals(
-                                    newRow[n]
-                            )
-            ) {
+            if (!existing[e].equals(newRow[n])) {
                 return false;
             }
         }
