@@ -10,9 +10,7 @@ import net.sf.jsqlparser.statement.*;
 import net.sf.jsqlparser.statement.select.*;
 import net.sf.jsqlparser.util.TablesNamesFinder;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,40 +29,28 @@ public class Query {
     }
 
     public void buildSynQuery() throws JSQLParserException {
+        // IMDB-JOB sql dialect
+
         // convert sql query to query that can be executed on a synopsis
         // take join queries into account here.
-        SynopsisQuery sq = new SynopsisQuery();
+        this.syn_query = new SynopsisQuery();
         PlainSelect select = (PlainSelect) CCJSqlParserUtil.parse(query_text);
 
         SelectItem selectItem = select.getSelectItems().get(0);
 
-        Map<String, String> aliasMap = new HashMap<>();
-        FromItem from = select.getFromItem();
-        Set<String> TableNames = TablesNamesFinder.findTables(query_text);
-        for (String tableName : TableNames){
-            String alias = tableName.getAlias() == null
-                    ? tableName
-                    : tableName.getAlias().getName();
+        this.syn_query.tables = new ArrayList<>();
 
-            aliasMap.put(alias, tableName);
-        }
-//        EqualsTo equalsTo = (EqualsTo) select.getWhere();
+        this.syn_query.tables.add((Table) select.getFromItem());
 
         if (select.getJoins() != null) {
-            for (Join join : select.getJoins()) {
-                Table table = (Table) join.getRightItem();
-
-                String tableName = table.getName();
-
-                String alias = table.getAlias() == null
-                        ? tableName
-                        : table.getAlias().getName();
-
-                aliasMap.put(alias, tableName);
+            for (Join j : select.getJoins()) {
+                if (j.isSimple()) {
+                    this.syn_query.tables.add((Table) j.getRightItem());
+                }
             }
         }
-//        Expression where = ps.getWhere();
-//        // parse equality predicates
+        Expression where = select.getWhere();
+        // parse equality predicates
 //        Pattern predPattern = Pattern.compile(
 //                "(\\w+\\.\\w+)\\s*=\\s*(\\w+\\.\\w+|'[^']*'|[^\\s;]+)",
 //                Pattern.CASE_INSENSITIVE

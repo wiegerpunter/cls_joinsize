@@ -1,5 +1,6 @@
 package org.synopses.RS;
 
+import net.sf.jsqlparser.schema.Table;
 import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
@@ -53,11 +54,11 @@ public class RSJoin {
         // 3. per join (possibly bad order), execute on samples
         HashMap<String, ReservoirSampleString> querySample = new HashMap<>();
         double scale = 1;
-        for (String table : synQuery.tables) {
-            ReservoirSampleString rsCopy = rsj.get(table).filtered(synQuery.getSelectionPredicatesPerTable(table));
+        for (Table table : synQuery.tables) {
+            ReservoirSampleString rsCopy = rsj.get(table.getName()).filtered(synQuery.getSelectionPredicatesPerTable(table.getName()));
             // apply local predicates
 
-            querySample.put(table, rsCopy);
+            querySample.put(table.getName(), rsCopy);
             if (rsCopy.size() == 0) {
                 return 0;
             }
