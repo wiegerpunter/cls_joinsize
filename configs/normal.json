@@ -3,7 +3,7 @@
   "duckdbPath": "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb",
   "N": 10000000,
   "numQueries": 10000,
-  "ramVals":[10000],
+  "ramVals":[1000000],
   "numAttributes":[6],
   "modelType": "ClusteredModel",
   "dataDistribution": "Corr",

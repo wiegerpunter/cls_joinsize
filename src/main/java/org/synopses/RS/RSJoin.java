@@ -46,7 +46,7 @@ public class RSJoin {
                 }
             }
         }
-        }
+    }
 
     public int query(SynopsisQuery synQuery) {
         // 1. select tables needed for query
@@ -69,14 +69,15 @@ public class RSJoin {
         long joined =
                 computeJoinSize(
                         querySample,
-                        synQuery.joins
+                        synQuery.joins,
+                        synQuery.aliasMap
                 );
         return Math.toIntExact(Math.round(joined * scale));
     }
 
     private long computeJoinSize(
             Map<String, ReservoirSampleString> samples,
-            List<SynopsisQuery.JoinPredicate> joins
+            List<SynopsisQuery.JoinPredicate> joins, HashMap<String, String> aliasMap
     ) {
 
         List<Map<String,String[]>> tuples =
@@ -111,7 +112,8 @@ public class RSJoin {
                             table,
                             candidate,
                             joins,
-                            samples
+                            samples,
+                            aliasMap
                     ) ) {
                         Map<String,String[]> copy = new HashMap<>(partial);
                         copy.put(table, candidate);
@@ -133,22 +135,21 @@ public class RSJoin {
             String newTable,
             String[] newRow,
             List<SynopsisQuery.JoinPredicate> joins,
-            Map<String,ReservoirSampleString> samples
+            Map<String,ReservoirSampleString> samples,
+            HashMap<String, String> aliasMap
     ) {
 
         for (SynopsisQuery.JoinPredicate j : joins) {
 
             boolean right =
-                    j.right().getTableName().equals(newTable);
+                    aliasMap.get(j.right().getTableName()).equals(newTable);
 
             boolean left =
-                    j.left().getTableName()
-                            .equals(newTable);
-
+                    aliasMap.get(j.left().getTableName()).equals(newTable);
             if (!right && !left)
                 continue;
 
-            String existingTable = left ? j.right().getTableName() : j.left().getTableName();
+            String existingTable = left ? aliasMap.get(j.right().getTableName()) : aliasMap.get(j.left().getTableName());
 
             if (!partial.containsKey(existingTable)) {
                 continue;
@@ -165,6 +166,9 @@ public class RSJoin {
 
             int n = samples.get(newTable).getIdCol(newCol);
 
+            if (existing[e] == null) {
+                return false;
+            }
             if (!existing[e].equals(newRow[n])) {
                 return false;
             }

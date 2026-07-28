@@ -115,7 +115,7 @@ public class ReservoirSampleString extends AbstractSynopsis {
             boolean add = true;
             for (EqualsTo sp : spList) {
                 int col = getIdCol(((Column) sp.getLeftExpression()).getColumnName());
-                if (reservoir[i][col].isEmpty()) { // check if null
+                if (reservoir[i][col]==null) { // check if null
                     add=false;
                     break;
                 }
