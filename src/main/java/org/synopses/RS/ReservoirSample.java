@@ -19,7 +19,7 @@ public class ReservoirSample extends AbstractSynopsis {
         reservoir = new int[size][numAttributes];
     }
 
-    public void add(int[] rec) {
+    public void addIntArr(int[] rec) {
         if (count < size){
             reservoir[count] = rec.clone();
         } else{

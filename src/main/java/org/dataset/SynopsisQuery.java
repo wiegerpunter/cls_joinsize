@@ -96,7 +96,6 @@ public class SynopsisQuery {
                 } else {
                     // Selection predicate
                     selections.add(eq);
-//                    continue; // #TODO: debugging
                 }
 
             }

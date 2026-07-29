@@ -31,9 +31,9 @@ public class ChowM2DVarElimTest {
         int[] rec2 = new int[]{1,2,3,5,4};
 
         int[] rec3 = new int[]{1,2,3,5,4};
-        c.add(record);
-        c.add(rec2);
-        c.add(rec3);
+        c.addIntArr(record);
+        c.addIntArr(rec2);
+        c.addIntArr(rec3);
 
         int[] query = new int[]{1,2,3,4,5};
         int est1 = c.query(query);

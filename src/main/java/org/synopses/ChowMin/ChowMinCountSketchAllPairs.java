@@ -62,7 +62,7 @@ public class ChowMinCountSketchAllPairs extends AbstractSynopsis {
         return a1 * (numAttributes - 1) - (a1 * (a1-1))/2 + (a2 - a1-1);
     }
 
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
         N += 1;
 
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle

@@ -43,7 +43,7 @@ public class RSJoin {
                     String[] rec = new String[numColumns];
                     for (int col = 1; col <= numColumns; col++) {
                         rec[col - 1] = rs.getString(col);
-//                        rec[col - 1] = "1"; // #TODO: debugging
+//                        rec[col - 1] = "1";
                     }
                     syn.add(rec);
                     numRecs++;

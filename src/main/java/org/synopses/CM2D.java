@@ -79,7 +79,7 @@ public class CM2D extends AbstractSynopsis {
         return 0;
     }
 
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
         N += 1;
         for (int i = 0; i < numAttributes; i++) {
             singleCMs[i].add(record[i]);

@@ -2,7 +2,6 @@ package org.experiments;
 
 import com.opencsv.CSVWriter;
 import org.synopses.*;
-import org.synopses.ChowMin.ChowM2DVarElim;
 import org.synopses.ChowMin.ChowMinAllPairs;
 import org.synopses.ChowMin.ChowMinCountSketchAllPairs;
 import org.utils.Config;
@@ -10,7 +9,6 @@ import org.utils.Edge;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.sql.SQLSyntaxErrorException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -43,13 +41,15 @@ public class RunExperiment {
 //            }
 
             for (int j = 0; j < config.num_rows.length; j++) {
-                ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, MIs, false);
-                runSynopsis(ChowLiuMinAllPairs, data, queries, exactAnswer);
+                ChowMinAllPairs chowLiuMinAllPairs = new ChowMinAllPairs("t1",data[0].length, config.num_rows[j], ram);
+                chowLiuMinAllPairs.setMIs(MIs, false);
+                runSynopsis(chowLiuMinAllPairs, data, queries, exactAnswer);
 
                 double[][] estimatedMIs = estimateMIs(data, config.num_rows[j], ram);
                 differenceMIs(MIs, estimatedMIs);
-                ChowMinAllPairs ChowLiuMinAllPairsEstimated = new ChowMinAllPairs(data[0].length, config.num_rows[j], ram, estimatedMIs, true);
-                runSynopsis(ChowLiuMinAllPairsEstimated, data, queries, exactAnswer);
+                ChowMinAllPairs chowLiuMinAllPairsEstimated = new ChowMinAllPairs("t1",data[0].length, config.num_rows[j], ram);
+                chowLiuMinAllPairsEstimated.setMIs(estimatedMIs, true);
+                runSynopsis(chowLiuMinAllPairsEstimated, data, queries, exactAnswer);
             }
 
             for (int j = 0; j < config.num_rows.length; j++) {
@@ -98,10 +98,10 @@ public class RunExperiment {
         return totalMI;
     }
 
-    private double[][] estimateMIs(int[][] data, int numRow, int ram) {
-        ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs(data[0].length, numRow, ram);
+    public static double[][] estimateMIs(int[][] data, int numRow, int ram) {
+        ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs("t1", data[0].length, numRow, ram);
         for (int[] datum : data) {
-            ChowLiuMinAllPairs.add(datum);
+            ChowLiuMinAllPairs.addIntArr(datum);
         }
         return ChowLiuMinAllPairs.estimateMIs();
     }
@@ -113,7 +113,7 @@ public class RunExperiment {
         System.out.println("Synopsis: "+ nm.setting + ", RAM: " + nm.ram);
         long start = System.currentTimeMillis();
         for (int[] datum : data) {
-            nm.add(datum);
+            nm.addIntArr(datum);
         }
         long end = System.currentTimeMillis();
         int ingestTime = (int) (end - start);

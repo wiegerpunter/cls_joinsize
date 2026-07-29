@@ -28,8 +28,8 @@ public class ChowM2DTest {
 
         int[] record = new int[]{1,2,3,4};
         int[] rec2 = new int[]{1,2,3,5};
-        c.add(record);
-        c.add(rec2);
+        c.addIntArr(record);
+        c.addIntArr(rec2);
 
         int[] query = new int[]{1,2,3,4};
         int est1 = c.query(query);
@@ -47,8 +47,8 @@ public class ChowM2DTest {
 
         int[] record = new int[]{1,2,3,4};
         int[] rec2 = new int[]{1,2,3,5};
-        c.add(record);
-        c.add(rec2);
+        c.addIntArr(record);
+        c.addIntArr(rec2);
 
         int[] query = new int[]{-1,2,3,4};
         int est1 = c.query(query);

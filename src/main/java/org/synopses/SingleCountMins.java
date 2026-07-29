@@ -62,7 +62,7 @@ public class SingleCountMins extends AbstractSynopsis {
     }
 
     @Override
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
         N += 1;
         for (int i = 0; i < numAttributes; i++) {
             singleCMs[i].add(record[i]);

@@ -34,7 +34,7 @@ public class ChowM2D extends AbstractSynopsis {
         buildGraph();
     }
 
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
         N += 1;
         for (Edge edge : edges) {
             scheme.get(edge).add(record[edge.getS()], record[edge.getT()]);

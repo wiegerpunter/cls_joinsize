@@ -73,7 +73,7 @@ public class ChowM2DVarElim extends AbstractSynopsis {
         }
     }
 
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
         N += 1;
         for (int att = 0; att < numAttributes; att++) {
             int[] h = hashes[att];

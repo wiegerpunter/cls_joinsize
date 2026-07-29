@@ -88,7 +88,7 @@ public class ReservoirSampleString extends AbstractSynopsis {
     }
 
     @Override
-    public void add(int[] record) {
+    public void addIntArr(int[] record) {
 
     }
 

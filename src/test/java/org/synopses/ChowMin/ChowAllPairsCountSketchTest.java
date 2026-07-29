@@ -4,8 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.utils.Edge;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.ChowLiu.computeMIs;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,8 +39,8 @@ public class ChowAllPairsCountSketchTest {
 
         double[][] MIs = computeMIs(data);
         ChowMinCountSketchAllPairs c = new ChowMinCountSketchAllPairs(numAttributes,3, ram, MIs);
-        c.add(record);
-        c.add(rec2);
+        c.addIntArr(record);
+        c.addIntArr(rec2);
         int[] query = new int[]{1,2,3,4,5};
         int est1 = c.query(query);
         assertEquals(1, est1, "Unexpected estimate size " + est1);

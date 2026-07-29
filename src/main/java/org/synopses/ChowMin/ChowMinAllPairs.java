@@ -22,38 +22,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int w;
     private final int[][] seeds;
     private final int[][] hashes;
-    private final double[][] MIs;
+    private double[][] MIs;
+    final private String table;
 
-    public ChowMinAllPairs(int numAttributes, int depth, int ram, double[][] MIs, boolean estMIs) {
-        if (estMIs) {
-            this.setting = "ChowM2DAllPairs_estMIs";
-        } else {
-            this.setting = "ChowM2DAllPairs";
-        }
-        this.ram = ram;
-        this.numAttributes = numAttributes;
-        this.MIs = MIs;
-        int[] params = getParams(ram, numAttributes, depth);
-        this.d = params[0];
-        this.w = params[1];
-        sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
-        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
-            for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(d, w, a1, a2);
-            }
-        }
-        seeds = new int[numAttributes][d];
-        for (int i = 0; i < numAttributes; i++) {
-            for (int j = 0; j < seeds[i].length; j++) {
-                seeds[i][j] = j + i;
-            }
-        }
-        hashes = new int[numAttributes][d];
-    }
+    public ChowMinAllPairs(String table, int numAttributes, int depth, int ram) {
+        this.table = table;
 
-    public ChowMinAllPairs(int numAttributes, int depth, int ram) {
-        MIs = new double[0][0];
-        this.setting = "ChowM2DAllPairs";
         this.ram = ram;
         this.numAttributes = numAttributes;
         int[] params = getParams(ram, numAttributes, depth);
@@ -99,12 +73,18 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
-
         for (int i = 0; i < d; i++) {
             hashes[i] = mix(attrValue, seeds[i], w);
         }
     }
-    public void add(int[] record) {
+
+    public void computeHashes(String attrValue, int[] hashes, int[] seeds) {
+        for (int i = 0; i < d; i++) {
+            hashes[i] = mix(attrValue.hashCode(), seeds[i], w);
+        }
+    }
+
+    public void addIntArr(int[] record) {
         N += 1;
         for (int att = 0; att < numAttributes; att++) {
             int[] h = hashes[att];
@@ -112,7 +92,24 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int v = record[att];
             computeHashes(v, h, s);
         }
+        addToSketch();
+    }
 
+    public void addStringArr(String[] record) {
+        N += 1;
+        for (int att = 0; att < numAttributes; att++) {
+            int[] h = hashes[att];
+            int[] s = seeds[att];
+            String v = record[att];
+            if (v == null) {
+                return; // return if null, don't add rec value to sketch
+            }
+            computeHashes(v, h, s);
+        }
+        addToSketch();
+    }
+
+    private void addToSketch() {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1 + 1; a2 < numAttributes; a2++) {
                 int[] ha1 = hashes[a1];
@@ -126,6 +123,28 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     public int query(int[] record) {
+        ArrayList<Integer> active = new ArrayList<>(numAttributes);
+        checkActive(active, record);
+
+        if (active.isEmpty()) {
+            return N;
+        }
+
+        if (active.size() == 1) {
+            return marginal(active.get(0), record[active.get(0)]);
+        }
+
+
+        HashSet<Integer> attrsInPath = getAttrsInPath(active);
+
+        int root_cl = active.get(0);
+        List<Edge> f = buildFactorization(attrsInPath, root_cl, numAttributes, MIs);
+        // query the pairwise CMs to get to estimate.
+
+        return queryFactors(f, record, attrsInPath);
+    }
+
+    public int query(String[] record) {
         ArrayList<Integer> active = new ArrayList<>(numAttributes);
         checkActive(active, record);
 
@@ -165,12 +184,22 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
     }
 
+    private void checkActive(ArrayList<Integer> active, String[] record) {
+        for (int i = 0; i < record.length; i++) {
+            if (record[i].equals("-1")) {
+                active.add(i);
+            }
+        }
+    }
+
     private HashSet<Integer> getAttrsInPath(ArrayList<Integer> active) {
         HashSet<Integer> attrs= new HashSet<Integer>(active.size());
         attrs.addAll(active);
         return attrs;
     }
-
+    private int marginal(Integer attr, String predicate) {
+        return sketches[sketch_idx_first(attr)].queryMarginal(predicate, attr);
+    }
     private int marginal(Integer attr, int predicate) {
         return sketches[sketch_idx_first(attr)].queryMarginal(predicate, attr);
     }
@@ -180,6 +209,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
     private int queryFactors(List<Edge> f, int[] record, HashSet<Integer> attrsInPath) {
+        constructDimensions(record, attrsInPath);
+        int numDimensions = attributeDimensions.size();
+        int[] indices = new int[numDimensions];
+        return pathQuery(numDimensions, indices, f);
+    }
+    private int queryFactors(List<Edge> f, String[] record, HashSet<Integer> attrsInPath) {
         constructDimensions(record, attrsInPath);
         int numDimensions = attributeDimensions.size();
         int[] indices = new int[numDimensions];
@@ -287,7 +322,27 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
     }
 
+    void constructDimensions(String[] record, HashSet<Integer> attrsInPath) {
+        attributeDimensions = new ArrayList<>();
+        for (int i = 0; i < numAttributes; i++) {
+            boolean isInPath = attrsInPath.contains(i);
+            if (!isInPath) {
+                continue;
+            }
+            int[] codomain;
+            codomain = getCodomain(i, record[i]); // format int[d rows]
+            int[][] valuesCodomain = new int[d][1];
+            for (int j = 0; j < codomain.length; j++) {
+                valuesCodomain[j] = new int[]{codomain[j]};
+            }
+            attributeDimensions.add(new AttributeDimension(i, valuesCodomain));
+        }
+    }
+
     private int[] getCodomain(int attr, int predicate) {
+        return sketches[sketch_idx_first(attr)].getCodomain(attr, predicate);
+    }
+    private int[] getCodomain(int attr, String predicate) {
         return sketches[sketch_idx_first(attr)].getCodomain(attr, predicate);
     }
 
@@ -372,5 +427,14 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     public double getN() {
         return N;
+    }
+
+    public void setMIs(double[][] MIs, boolean estMIs) {
+        this.MIs = MIs;
+        if (estMIs) {
+            this.setting = "ChowM2DAllPairs_estMIs";
+        } else {
+            this.setting = "ChowM2DAllPairs";
+        }
     }
 }

@@ -133,12 +133,25 @@ public class TWODCM {
                 hashes[i] = mix(attrValue, seedsS[i], width);
             }
         } else {
-
             for (int i = 0; i < depth; i++) {
                 hashes[i] = mix(attrValue, seedsT[i], width);
             }
         }
     }
+
+    public void computeHashes(String attrValue, int[] hashes, boolean source) {
+//        final int mask = width - 1;
+        if (source) { // never true
+            for (int i = 0; i < depth; i++) {
+                hashes[i] = mix(attrValue.hashCode(), seedsS[i], width);
+            }
+        } else {
+            for (int i = 0; i < depth; i++) {
+                hashes[i] = mix(attrValue.hashCode(), seedsT[i], width);
+            }
+        }
+    }
+
     static public int hash(int attrValue, int attribute, int row, int width) {
         int seed = row + attribute;
         return mix(attrValue, seed, width);
@@ -184,6 +197,19 @@ public class TWODCM {
     }
 
     public int[] getCodomain(int attr, int predicate) {
+        if (attr == attrS) {
+//            computeHashes(xxS, predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS, true);
+
+            return reusableHashesS;
+        } else {
+            computeHashes(predicate, reusableHashesT, false);
+
+            return reusableHashesT;
+        }
+
+    }
+    public int[] getCodomain(int attr, String predicate) {
         if (attr == attrS) {
 //            computeHashes(xxS, predicate, reusableHashesS);
             computeHashes(predicate, reusableHashesS, true);
@@ -252,6 +278,11 @@ public class TWODCM {
         int[] rows = IntStream.range(0, predIdxs.length).toArray();
         return marginal(predIdxs, attr, rows);
     }
+    public int queryMarginal(String predicate, int attr) {
+        int[] predIdxs = getPredIdx(predicate, attr);
+        int[] rows = IntStream.range(0, predIdxs.length).toArray();
+        return marginal(predIdxs, attr, rows);
+    }
 
     int marginal(int[] predIdxs, int attr, int[] rows) {
         int minEstimate = Integer.MAX_VALUE;
@@ -277,6 +308,20 @@ public class TWODCM {
     }
 
     int[] getPredIdx(int predicate, int attr) {
+        if (attrS == attr) {
+//            computeHashes(xxS, predicate, reusableHashesS);
+            computeHashes(predicate, reusableHashesS, true);
+
+            return reusableHashesS;
+        } else {
+            computeHashes(predicate, reusableHashesT, false);
+
+//            computeHashes(xxT, predicate, reusableHashesT);
+            return reusableHashesT;
+        }
+    }
+
+    int[] getPredIdx(String predicate, int attr) {
         if (attrS == attr) {
 //            computeHashes(xxS, predicate, reusableHashesS);
             computeHashes(predicate, reusableHashesS, true);

@@ -64,7 +64,7 @@ public class aSH extends AbstractSynopsis{
         this.sameRecCounter = 0;
     }
 
-    public void add(int[] rec) {
+    public void addIntArr(int[] rec) {
         ingest(rec, 1);
         count++;
     }

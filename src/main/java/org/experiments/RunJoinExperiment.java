@@ -4,6 +4,7 @@ import org.dataset.JoinDataset;
 import org.dataset.Query;
 import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
+import org.synopses.ChowMin.CMJoin;
 import org.synopses.RS.RSJoin;
 import org.synopses.RS.ReservoirSampleString;
 import org.utils.Config;
@@ -23,12 +24,20 @@ public class RunJoinExperiment {
         this.d = d;
         this.con = con;
 
+//        for (int ram : config.ramVals) {
+//            System.out.println("Starting iteration over " + ram / 1000000 + " MB");
+//            RSJoin rsj = new RSJoin();
+//            rsj.initialize(d.tableNames, d.attrMap, ram, d.numColumnsPerTable, config);
+//            rsj.ingestData(d, con);
+//            queryRS(rsj);
+//        }
         for (int ram : config.ramVals) {
-            System.out.println("Starting iteration over " + ram / 1000000 + " MB");
-            RSJoin rsj = new RSJoin();
-            rsj.initialize(d.tableNames, d.attrMap, ram, d.numColumnsPerTable, config);
-            rsj.ingestData(d, con);
-            queryRS(rsj);
+            for (int j = 0; j < config.num_rows.length; j++) {
+                System.out.println("Starting iteration over " + ram / 1000000 + " MB");
+                CMJoin cmj = new CMJoin();
+                cmj.initialize(d, ram, config.num_rows[j], con);
+                queryCM(cmj);
+            }
         }
     }
 
@@ -40,6 +49,17 @@ public class RunJoinExperiment {
 
         for (Query q : d.getQueries()) {
             int estimate = rsj.query(q.syn_query);
+            double error = estimate - q.getResult();
+            System.out.println("Query " + q.getName() + " error: " + error + " exact: " + q.getResult() + " estimate: " +estimate);
+        }
+
+    }
+    private void queryCM(CMJoin cmj) {
+        // execute queries in d on reservoir samples
+
+
+        for (Query q : d.getQueries()) {
+            int estimate = cmj.query(q.syn_query);
             double error = estimate - q.getResult();
             System.out.println("Query " + q.getName() + " error: " + error + " exact: " + q.getResult() + " estimate: " +estimate);
         }

@@ -10,7 +10,7 @@ public abstract class AbstractSynopsis {
     public AbstractSynopsis() {
     }
 
-    public abstract void add(int[] record);
+    public abstract void addIntArr(int[] record);
 
     public abstract int query(int[] record);
 
