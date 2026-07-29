@@ -4,6 +4,7 @@ import net.sf.jsqlparser.schema.Table;
 import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
+import org.experiments.RunJoinExperiment;
 import org.utils.Config;
 
 import java.sql.ResultSet;
@@ -34,6 +35,7 @@ public class RSJoin {
             String dataQuery = "SELECT * FROM " + t;
             ReservoirSampleString syn = rsj.get(t);
             int numColumns = d.numColumnsPerTable.get(t);
+            int numRecs = 0;
             try (Statement stmt = con.createStatement();
                  ResultSet rs = stmt.executeQuery(dataQuery);
             ) {
@@ -41,8 +43,13 @@ public class RSJoin {
                     String[] rec = new String[numColumns];
                     for (int col = 1; col <= numColumns; col++) {
                         rec[col - 1] = rs.getString(col);
+//                        rec[col - 1] = "1"; // #TODO: debugging
                     }
                     syn.add(rec);
+                    numRecs++;
+//                    if (numRecs ==2) {
+//                        break;
+//                    }
                 }
             }
         }
@@ -58,7 +65,7 @@ public class RSJoin {
             ReservoirSampleString rsCopy = rsj.get(table.getName()).filtered(synQuery.getSelectionPredicatesPerTable(table));
             // apply local predicates
 
-            querySample.put(table.getName(), rsCopy);
+            querySample.put(table.getAlias().getName(), rsCopy);
             if (rsCopy.size() == 0) {
                 return 0;
             }
@@ -84,14 +91,16 @@ public class RSJoin {
                 new ArrayList<>();
 
         //------------------------------------
-        // initialize with first table
+        // initialize with first table that occurs in join
         //------------------------------------
 
         String first = samples.keySet()
                         .iterator()
                         .next();
 
-        for (String[] row : samples.get(first).reservoir) {
+        ReservoirSampleString r =  samples.get(first);
+        for (int i = 0; i < r.size(); i++) {
+            String[] row = r.reservoir[i];
             Map<String,String[]> x = new HashMap<>();
             x.put(first,row);
             tuples.add(x);
@@ -106,7 +115,8 @@ public class RSJoin {
             ReservoirSampleString rs = samples.get(table);
             List<Map<String,String[]>> next = new ArrayList<>();
             for (Map<String,String[]> partial : tuples) {
-                for (String[] candidate : rs.reservoir) {
+                for (int j = 0; j < rs.size(); j++) {
+                    String[] candidate = rs.reservoir[j];
                     if ( satisfies(
                             partial,
                             table,
@@ -121,7 +131,6 @@ public class RSJoin {
                     }
                 }
             }
-
             tuples = next;
 
             if (tuples.isEmpty())
@@ -142,14 +151,14 @@ public class RSJoin {
         for (SynopsisQuery.JoinPredicate j : joins) {
 
             boolean right =
-                    aliasMap.get(j.right().getTableName()).equals(newTable);
+                    j.right().getTableName().equals(newTable);
 
             boolean left =
-                    aliasMap.get(j.left().getTableName()).equals(newTable);
+                    j.left().getTableName().equals(newTable);
             if (!right && !left)
                 continue;
 
-            String existingTable = left ? aliasMap.get(j.right().getTableName()) : aliasMap.get(j.left().getTableName());
+            String existingTable = left ? j.right().getTableName() : j.left().getTableName();
 
             if (!partial.containsKey(existingTable)) {
                 continue;
