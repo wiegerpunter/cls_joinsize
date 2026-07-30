@@ -11,13 +11,21 @@ import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 
 import java.util.*;
-
+import java.util.concurrent.atomic.AtomicInteger;
+record ColumnKey(String table, String column) {
+    static ColumnKey of(Column c) {
+        return new ColumnKey(
+                c.getTable().getName(),
+                c.getColumnName()
+        );
+    }
+}
 public class SynopsisQuery {
     public List<Table> tables;
     public List<EqualsTo> selections = new ArrayList<>();
     public List<JoinPredicate> joins = new ArrayList<>();
     public HashMap<String, String> aliasMap;
-    private final Map<Column, String> columnToJoinKey = new HashMap<>();
+    private final Map<ColumnKey, String> columnToJoinKey = new HashMap<>();
     private final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
     @Override
     public String toString() {
@@ -40,7 +48,6 @@ public class SynopsisQuery {
             aliasMap.put(t.getAlias().getName(), t.getName());
         }
     }
-
 
     public List<EqualsTo> getSelectionPredicatesPerTable(Table table) {
         List<EqualsTo> selPerTable = new ArrayList<>();
@@ -103,6 +110,41 @@ public class SynopsisQuery {
 
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.
+        }
+    }
+
+    private void buildEquivalentJoinKeys() {
+        boolean[] addedJoin = new boolean[joins.size()];
+        int counter =1;
+        for (int i = 0; i<joins.size(); i++){
+            if (addedJoin[i]) {
+                continue;
+            }
+            String tleft = joins.get(i).left().getTableName();
+            Column cleft = joins.get(i).left();
+            String tright = joins.get(i).right().getTableName();
+            Column cright = joins.get(i).right();
+            if (!columnToJoinKey.containsKey(ColumnKey.of(cleft)) && !columnToJoinKey.containsKey(ColumnKey.of(cright))) {
+                String key = "J" + counter;
+                counter += 1;
+                columnToJoinKey.put(ColumnKey.of(cleft), key);
+                columnToJoinKey.put(ColumnKey.of(cright), key);
+                HashMap<String, Column> mapOfKey = new HashMap<>();
+                mapOfKey.put(tleft, cleft);
+                mapOfKey.put(tright, cright);
+                joinKeyToTableColumn.put(key, mapOfKey);
+            } else if (columnToJoinKey.containsKey(ColumnKey.of(cleft)) && !columnToJoinKey.containsKey(ColumnKey.of(cright))) {
+                String key = columnToJoinKey.get(ColumnKey.of(cleft));
+                columnToJoinKey.put(ColumnKey.of(cright), key);
+                HashMap<String, Column> mapOfKey = (HashMap<String, Column>) joinKeyToTableColumn.get(key);
+                mapOfKey.put(tright, cright); // check if map needs to be put back or if sufficient.
+            } else if (!columnToJoinKey.containsKey(ColumnKey.of(cleft)) && columnToJoinKey.containsKey(ColumnKey.of(cright))) {
+                String key = columnToJoinKey.get(ColumnKey.of(cright));
+                columnToJoinKey.put(ColumnKey.of(cleft), key);
+                HashMap<String, Column> mapOfKey = (HashMap<String, Column>) joinKeyToTableColumn.get(key);
+                mapOfKey.put(tleft, cleft); // check if map needs to be put back or if sufficient.
+            }
+            addedJoin[i] = true;
         }
     }
 }
