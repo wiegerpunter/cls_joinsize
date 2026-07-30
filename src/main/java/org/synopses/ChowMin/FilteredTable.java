@@ -7,10 +7,11 @@ import org.dataset.SynopsisQuery;
 import java.util.*;
 
 public class FilteredTable {
-    private final List<String> unqColumns;
+    private final List<SynopsisQuery.ColumnKey> unqColumns;
     String tableName;
     Table t;
     SynopsisQuery q;
+    ChowMinAllPairs s;
 
     // Join keys participating in this table
     int[] joinAttributes;
@@ -22,8 +23,9 @@ public class FilteredTable {
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
         this.q = query;
+        this.s = s;
         this.unqColumns = unqJoinKeysInTable();
-        /// this view must represent the filtered table after applying the predicates.
+        // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
         int total = (int) Math.pow(s.getw(), k);
 
@@ -33,7 +35,7 @@ public class FilteredTable {
             int[] buckets = decodeIdx(idx, k, s.getw());
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
             for (int i = 0; i < unqColumns.size();i++) {
-                bucketPerAttribute.put(s.getIdCol(unqColumns.get(i)), buckets[i]);
+                bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
             }
             view[idx] = s.queryWithJoinB(
                     j,
@@ -63,20 +65,26 @@ public class FilteredTable {
         return buckets;
     }
 
-    private List<String> unqJoinKeysInTable() {
-        Set<String> unqColumns = new HashSet<>();
+    private List<SynopsisQuery.ColumnKey> unqJoinKeysInTable() {
+        Set<SynopsisQuery.ColumnKey> unqColumns = new HashSet<>();
         for (SynopsisQuery.JoinPredicate j : q.joins) {
             if (j.left().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(j.left().getColumnName());
+                unqColumns.add(SynopsisQuery.ColumnKey.of(j.left()));
             }
             if (j.right().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(j.right().getColumnName());
+                unqColumns.add(SynopsisQuery.ColumnKey.of(j.right()));
             }
         }
-        return unqColumns.stream().toList();
+        List<SynopsisQuery.ColumnKey> unqColumnList = new ArrayList<>(unqColumns.size());
+        int i =0;
+        for (SynopsisQuery.ColumnKey c : unqColumns) {
+            unqColumnList.set(i, c);
+            i++;
+        }
+        return unqColumnList;
     }
 
-    public List<String> getUnqColumns() {
+    public List<SynopsisQuery.ColumnKey> getUnqColumns() {
         return unqColumns;
     }
 }

@@ -1,5 +1,6 @@
 package org.synopses.ChowMin;
 
+import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
@@ -70,26 +71,33 @@ public class CMJoin {
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
-
             map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
         }
         return map;
     }
 
     private double estimateJoinSize(int j, SynopsisQuery query, Map<String, FilteredTable> filtered) {
-        return 0;
-    }
+        // All unique join keys participating in the query
 
-    private Set<String> unqJoinKeysInTable(SynopsisQuery q, Table t) {
-        Set<String> unqColumns = new HashSet<>();
-        for (SynopsisQuery.JoinPredicate j : q.joins) {
-            if (j.left().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(j.left().getColumnName());
+        int w = cmj.values().iterator().next().getw();
+        double estimate = 0.0;
+        // Enumerate all possible codomains of the equivalent join keys
+        int totalBuckets = (int) Math.pow(w, query.joinKeyToTableColumn.size());
+        for (int idx = 0; idx < totalBuckets; idx++) {
+            int[] bucketAssignment = decodeIdx(idx, query.joinKeyToTableColumn.size(), w);
+            double product = 1.0;
+            for (FilteredTable ft : filtered.values()) {
+                int[] tableBuckets = new int[ft.joinAttributes.length];
+                for (int i = 0; i < ft.joinAttributes.length; i++) {
+                    SynopsisQuery.ColumnKey columnKey = ft.getUnqColumns().get(i);
+                    String key = columnKey.column();
+                    tableBuckets[i] = bucketAssignment[ft.s.getIdCol(key)];
+                }
+                int viewIdx = getIdx(tableBuckets, w);
+                product *= ft.view[viewIdx];
             }
-            if (j.right().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(j.right().getColumnName());
-            }
+            estimate += product;
         }
-        return unqColumns;
+        return estimate;
     }
 }

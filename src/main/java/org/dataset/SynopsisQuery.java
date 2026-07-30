@@ -12,21 +12,23 @@ import net.sf.jsqlparser.statement.select.PlainSelect;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-record ColumnKey(String table, String column) {
-    static ColumnKey of(Column c) {
-        return new ColumnKey(
-                c.getTable().getName(),
-                c.getColumnName()
-        );
-    }
-}
+
 public class SynopsisQuery {
     public List<Table> tables;
     public List<EqualsTo> selections = new ArrayList<>();
     public List<JoinPredicate> joins = new ArrayList<>();
     public HashMap<String, String> aliasMap;
-    private final Map<ColumnKey, String> columnToJoinKey = new HashMap<>();
-    private final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
+    public final Map<ColumnKey, String> columnToJoinKey = new HashMap<>();
+    public final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
+    public record ColumnKey(String table, String column) {
+        public static ColumnKey of(Column c) {
+            return new ColumnKey(
+                    c.getTable().getName(),
+                    c.getColumnName()
+            );
+        }
+    }
+
     @Override
     public String toString() {
         return "Tables=" + tables +

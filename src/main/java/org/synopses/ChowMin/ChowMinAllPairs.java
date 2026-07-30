@@ -1,8 +1,10 @@
 package org.synopses.ChowMin;
 
+import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
-import org.apache.commons.lang3.tuple.Pair;
+import net.sf.jsqlparser.schema.Column;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.dataset.SynopsisQuery;
 import org.synopses.AbstractSynopsis;
 import org.utils.Edge;
 
@@ -440,7 +442,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
     }
 
-    public double queryWithJoinB(int j, List<EqualsTo> selectionPredicatesPerTable, List<String> unqColumns,
+    public double queryWithJoinB(int j, List<EqualsTo> selectionPredicatesPerTable, List<SynopsisQuery.ColumnKey> unqColumns,
                                  HashMap<Integer,Integer> bucketPerAttribute) {
         // for repetition j, apply selectionpredicates and return value for unqColumn at codomain val b
         // value for every attribute.
@@ -454,8 +456,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // local predicates
         for (EqualsTo eq : selectionPredicatesPerTable) {
 
-            String col = eq.getLeftExpression().toString();
-            String value = eq.getRightExpression().toString().replace("'", "");
+            String col = ((Column) eq.getLeftExpression()).getColumnName();
+            String value = ((StringValue) eq.getRightExpression()).getValue();
 
             int attr = getIdCol(col);
             if (attr < 0)
@@ -467,8 +469,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         int joinAttrRoot = -1;
 
         // determine join attribute
-        for (String unqColumn : unqColumns) {
-            int attr = getIdCol(unqColumn);
+        for (SynopsisQuery.ColumnKey unqColumn : unqColumns) {
+            int attr = getIdCol(unqColumn.column());
             if (!active.contains(attr)) {
                 if (joinAttrRoot == -1) {
                     joinAttrRoot = attr;
@@ -553,6 +555,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 return i;
             }
         }
-        throw new RuntimeException("Column " + col + " not found for table" + table);
+        throw new RuntimeException("Column " + col + " not found for table: " + table);
     }
 }
