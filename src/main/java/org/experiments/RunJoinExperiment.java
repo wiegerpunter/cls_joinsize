@@ -31,14 +31,11 @@ public class RunJoinExperiment {
 //            rsj.ingestData(d, con);
 //            queryRS(rsj);
 //        }
-        for (int ram : config.ramVals) {
-            for (int j = 0; j < config.num_rows.length; j++) {
-                System.out.println("Starting iteration over " + ram / 1000000 + " MB");
+        for (int j = 0; j < config.num_rows.length; j++) {
                 CMJoin cmj = new CMJoin();
-                cmj.initialize(d, d.attrMap, ram, config.num_rows[j], con);
+                cmj.initialize(d, d.attrMap, 0, config.num_rows[j], config.width, con);
                 queryCM(cmj);
             }
-        }
     }
 
 

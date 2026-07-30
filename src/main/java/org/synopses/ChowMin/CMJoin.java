@@ -19,18 +19,20 @@ public class CMJoin {
     HashMap<String, ChowMinAllPairs> cmj;
     HashMap<String, String[]> attrMap;
     int depth;
+    int width;
 
     public CMJoin() {
         cmj = new HashMap<>();
         attrMap = new HashMap<>();
     }
 
-    public void initialize(JoinDataset d, HashMap<String, String[]> attrMap, int ram, int depth, DuckDBConnection con) {
+    public void initialize(JoinDataset d, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
         this.depth = depth;
+        this.width = width;
         HashMap<String, Integer> numColumnsPerTable = d.numColumnsPerTable;
 
         for (String t : d.tableNames) {
-            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), numColumnsPerTable.get(t), depth, ram);
+            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), numColumnsPerTable.get(t), depth, width, ram);
 
             int numColumns = d.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;

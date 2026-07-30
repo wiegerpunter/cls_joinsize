@@ -21,6 +21,7 @@ public class Config {
     public int latentCard;
     public int[] num_rows;
     public double[] ingest_buffers;
+    public int width;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

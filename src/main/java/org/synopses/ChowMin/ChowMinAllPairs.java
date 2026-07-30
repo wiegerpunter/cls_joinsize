@@ -29,12 +29,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     final private String table;
     final private String[] columns;
 
-    public ChowMinAllPairs(String table, String[] columns, int numAttributes, int depth, int ram) {
+    public ChowMinAllPairs(String table, String[] columns, int numAttributes, int depth, int width, int ram) {
         this.table = table;
         this.columns = columns;
         this.ram = ram;
         this.numAttributes = numAttributes;
-        int[] params = getParams(ram, numAttributes, depth);
+        int[] params = getParams(ram, numAttributes, depth, width);
         this.d = params[0];
         this.w = params[1];
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
@@ -46,7 +46,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         seeds = new int[numAttributes][d];
         for (int i = 0; i < numAttributes; i++) {
             for (int j = 0; j < seeds[i].length; j++) {
-                seeds[i][j] = j + i;
+                seeds[i][j] = j + columns[i].hashCode();
             }
         }
         hashes = new int[numAttributes][d];
@@ -267,9 +267,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 break; // all combinations exhausted
             }
         }
-        if (sum == 0) {
-            System.out.println("q 0");
-        }
         return (int) (sum);
     }
 
@@ -411,12 +408,15 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return adjMatrix;
     }
 
-    private int[] getParams(int ram, int numAttributes, int d) {
+    private int[] getParams(int ram, int numAttributes, int d, int w) {
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes * numAttributes/2 - numAttributes/2;
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);
+        if (w != -1) { // consistent w
+            width = w;
+        }
         System.out.println("Chow M All pairs has parameters d: " + d + " w: " +width);
 
         return new int[]{d,width};

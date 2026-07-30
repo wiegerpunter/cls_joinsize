@@ -110,7 +110,8 @@ public class SynopsisQuery {
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-                    selections.add(eq);
+//                    selections.add(eq);
+                    continue; // debug w/o local predicates
                 }
 
             }
