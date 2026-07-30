@@ -10,6 +10,7 @@ import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 
+import javax.script.AbstractScriptEngine;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,6 +21,8 @@ public class SynopsisQuery {
     public HashMap<String, String> aliasMap;
     public final Map<ColumnKey, String> columnToJoinKey = new HashMap<>();
     public final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
+    public final Map<String, Integer> joinKeyId = new HashMap<>();
+
     public record ColumnKey(String table, String column) {
         public static ColumnKey of(Column c) {
             return new ColumnKey(
@@ -128,6 +131,7 @@ public class SynopsisQuery {
             Column cright = joins.get(i).right();
             if (!columnToJoinKey.containsKey(ColumnKey.of(cleft)) && !columnToJoinKey.containsKey(ColumnKey.of(cright))) {
                 String key = "J" + counter;
+                joinKeyId.put(key, counter - 1);
                 counter += 1;
                 columnToJoinKey.put(ColumnKey.of(cleft), key);
                 columnToJoinKey.put(ColumnKey.of(cright), key);

@@ -87,11 +87,12 @@ public class CMJoin {
             int[] bucketAssignment = decodeIdx(idx, query.joinKeyToTableColumn.size(), w);
             double product = 1.0;
             for (FilteredTable ft : filtered.values()) {
-                int[] tableBuckets = new int[ft.joinAttributes.length];
-                for (int i = 0; i < ft.joinAttributes.length; i++) {
+                int[] tableBuckets = new int[ft.getUnqColumns().size()];
+                for (int i = 0; i < ft.getUnqColumns().size(); i++) {
                     SynopsisQuery.ColumnKey columnKey = ft.getUnqColumns().get(i);
-                    String key = columnKey.column();
-                    tableBuckets[i] = bucketAssignment[ft.s.getIdCol(key)];
+                    String joinKey = query.columnToJoinKey.get(columnKey);
+                    int joinKeyId = query.joinKeyId.get(joinKey);
+                    tableBuckets[i] = bucketAssignment[joinKeyId];
                 }
                 int viewIdx = getIdx(tableBuckets, w);
                 product *= ft.view[viewIdx];

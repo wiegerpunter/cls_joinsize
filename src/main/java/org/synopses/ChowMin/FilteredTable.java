@@ -12,10 +12,6 @@ public class FilteredTable {
     Table t;
     SynopsisQuery q;
     ChowMinAllPairs s;
-
-    // Join keys participating in this table
-    int[] joinAttributes;
-
     // Estimated filtered frequencies indexed by join-key buckets.
     // For one join key: [w]
     // For two join keys: [w][w]
@@ -76,11 +72,7 @@ public class FilteredTable {
             }
         }
         List<SynopsisQuery.ColumnKey> unqColumnList = new ArrayList<>(unqColumns.size());
-        int i =0;
-        for (SynopsisQuery.ColumnKey c : unqColumns) {
-            unqColumnList.set(i, c);
-            i++;
-        }
+        unqColumnList.addAll(unqColumns);
         return unqColumnList;
     }
 
