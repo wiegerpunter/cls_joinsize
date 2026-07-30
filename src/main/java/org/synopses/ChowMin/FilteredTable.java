@@ -33,7 +33,7 @@ public class FilteredTable {
             int[] buckets = decodeIdx(idx, k, s.getw());
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
             for (int i = 0; i < unqColumns.size();i++) {
-                bucketPerAttribute.put(i, buckets[i]);
+                bucketPerAttribute.put(s.getIdCol(unqColumns.get(i)), buckets[i]);
             }
             view[idx] = s.queryWithJoinB(
                     j,
@@ -42,7 +42,7 @@ public class FilteredTable {
                     bucketPerAttribute);
         }
     }
-    private int getIdx(int[] buckets, int w) {
+    public static int getIdx(int[] buckets, int w) {
         int idx = 0;
         int mult = 1;
 
@@ -52,7 +52,7 @@ public class FilteredTable {
         }
         return idx;
     }
-    private int[] decodeIdx(int idx, int k, int w) {
+    public static int[] decodeIdx(int idx, int k, int w) {
         int[] buckets = new int[k];
 
         for (int i = 0; i < k; i++) {
@@ -74,5 +74,9 @@ public class FilteredTable {
             }
         }
         return unqColumns.stream().toList();
+    }
+
+    public List<String> getUnqColumns() {
+        return unqColumns;
     }
 }

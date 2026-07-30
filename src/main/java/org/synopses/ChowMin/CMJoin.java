@@ -11,6 +11,9 @@ import java.sql.Statement;
 import java.util.*;
 import java.util.logging.Filter;
 
+import static org.synopses.ChowMin.FilteredTable.decodeIdx;
+import static org.synopses.ChowMin.FilteredTable.getIdx;
+
 public class CMJoin {
     HashMap<String, ChowMinAllPairs> cmj;
     HashMap<String, String[]> attrMap;
@@ -55,11 +58,6 @@ public class CMJoin {
         // 1. select tables/chowmins for query
         // 2. apply predicates selecting for the eq join key something that it has to multiply with
         // 3. join size is estimated by inference procedure over the chowmin hash codomains per eq join key and multiplying with the local predicate tensors.
-        for (Table t : synQuery.tables) {
-            if (unqJoinKeysInTable(synQuery, t).size() > 2) {
-                return -1;
-            }
-        }
         double[] estimates = new double[depth];
 
         for (int j = 0; j < depth; j++) {

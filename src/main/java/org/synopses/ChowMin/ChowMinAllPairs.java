@@ -528,7 +528,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 }
             }
             else {
-                throw new RuntimeException("Inactive attribute ended up in here.");
+                throw new RuntimeException("Inactive attribute");
             }
 //                // Latent attribute: iterate over every bucket
 //                valuesCodomain = new int[d][w];
@@ -547,7 +547,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
 
-    private int getIdCol(String col) {
+    int getIdCol(String col) {
         for (int i = 0; i < columns.length; i++) {
             if (columns[i].equals(col)) {
                 return i;

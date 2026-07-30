@@ -17,6 +17,8 @@ public class SynopsisQuery {
     public List<EqualsTo> selections = new ArrayList<>();
     public List<JoinPredicate> joins = new ArrayList<>();
     public HashMap<String, String> aliasMap;
+    private final Map<Column, String> columnToJoinKey = new HashMap<>();
+    private final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
     @Override
     public String toString() {
         return "Tables=" + tables +
@@ -28,6 +30,7 @@ public class SynopsisQuery {
         parseTables(select);
         setAliasMap();
         parseWhere(select);
+        buildEquivalentJoinKeys();
     }
 
     public void setAliasMap(){
