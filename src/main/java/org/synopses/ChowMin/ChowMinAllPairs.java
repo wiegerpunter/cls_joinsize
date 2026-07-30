@@ -1,5 +1,6 @@
 package org.synopses.ChowMin;
 
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import org.apache.commons.lang3.tuple.Pair;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.synopses.AbstractSynopsis;
@@ -24,10 +25,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int[][] hashes;
     private double[][] MIs;
     final private String table;
+    final private String[] columns;
 
-    public ChowMinAllPairs(String table, int numAttributes, int depth, int ram) {
+    public ChowMinAllPairs(String table, String[] columns, int numAttributes, int depth, int ram) {
         this.table = table;
-
+        this.columns = columns;
         this.ram = ram;
         this.numAttributes = numAttributes;
         int[] params = getParams(ram, numAttributes, depth);
@@ -436,5 +438,121 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         } else {
             this.setting = "ChowM2DAllPairs";
         }
+    }
+
+    public double queryWithJoinB(int j, List<EqualsTo> selectionPredicatesPerTable, List<String> unqColumns,
+                                 HashMap<Integer,Integer> bucketPerAttribute) {
+        // for repetition j, apply selectionpredicates and return value for unqColumn at codomain val b
+        // value for every attribute.
+        // null = latent / not queried
+        String[] record = new String[numAttributes];
+        Arrays.fill(record, null);
+
+        HashSet<Integer> active = new HashSet<>();
+
+
+        // local predicates
+        for (EqualsTo eq : selectionPredicatesPerTable) {
+
+            String col = eq.getLeftExpression().toString();
+            String value = eq.getRightExpression().toString().replace("'", "");
+
+            int attr = getIdCol(col);
+            if (attr < 0)
+                continue;
+
+            record[attr] = value;
+            active.add(attr);
+        }
+        int joinAttrRoot = -1;
+
+        // determine join attribute
+        for (String unqColumn : unqColumns) {
+            int attr = getIdCol(unqColumn);
+            if (!active.contains(attr)) {
+                if (joinAttrRoot == -1) {
+                    joinAttrRoot = attr;
+                }
+                active.add(attr);
+            }
+        }
+
+        if (joinAttrRoot ==-1)
+            throw new RuntimeException("No join attribute found.");
+
+        List<Edge> factors =
+                buildFactorization(active, joinAttrRoot, numAttributes, MIs);
+
+        return queryFactorsJoinBucket(j, factors, record, bucketPerAttribute,active);
+    }
+
+    private double queryFactorsJoinBucket(int j,
+                                          List<Edge> factors,
+                                          String[] record,
+                                          HashMap<Integer, Integer> bucketPerAttribute,
+                                          HashSet<Integer> active) {
+        constructDimensionsJoin(record, bucketPerAttribute, j, active);
+
+        int dims = attributeDimensions.size();
+        int[] indices = new int[dims];
+
+        return pathQuery(dims, indices, factors);
+    }
+
+    private void constructDimensionsJoin(String[] record,
+                                         HashMap<Integer, Integer> bucketPerAttribute, int j,
+                                         HashSet<Integer> active) {
+        attributeDimensions = new ArrayList<>();
+
+        for (int attr : active) {
+            int[][] valuesCodomain;
+
+            if (bucketPerAttribute.containsKey(attr)) {
+                int bucket = bucketPerAttribute.get(attr);
+                // Join key fixed to bucket b
+                valuesCodomain = new int[d][1];
+                valuesCodomain[j][0] = bucket;
+
+                // other repetitions are unused, but fill anyway
+                for (int r = 0; r < d; r++) {
+                    valuesCodomain[r][0] = bucket;
+                }
+            }
+            else if (record[attr] != null) {
+                // Predicate attribute
+                int[] codomain = getCodomain(attr, record[attr]);
+
+                valuesCodomain = new int[d][1];
+                for (int r = 0; r < d; r++) {
+                    valuesCodomain[r][0] = codomain[r];
+                }
+            }
+            else {
+                throw new RuntimeException("Inactive attribute ended up in here.");
+            }
+//                // Latent attribute: iterate over every bucket
+//                valuesCodomain = new int[d][w];
+//
+//                for (int r = 0; r < d; r++) {
+//                    for (int c = 0; c < w; c++) {
+//                        valuesCodomain[r][c] = c;
+//                    }
+//                }
+//            }
+
+            attributeDimensions.add(
+                    new AttributeDimension(attr, valuesCodomain)
+            );
+        }
+    }
+
+
+    private int getIdCol(String col) {
+        for (int i = 0; i < columns.length; i++) {
+            if (columns[i].equals(col)) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Column " + col + " not found for table" + table);
     }
 }

@@ -170,8 +170,7 @@ public class RSJoin {
 
             String newCol = left ? j.left().getColumnName() : j.right().getColumnName();
 
-            int e =
-                    samples.get(existingTable).getIdCol(existingCol);
+            int e = samples.get(existingTable).getIdCol(existingCol);
 
             int n = samples.get(newTable).getIdCol(newCol);
 

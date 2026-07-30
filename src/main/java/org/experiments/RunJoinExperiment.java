@@ -35,7 +35,7 @@ public class RunJoinExperiment {
             for (int j = 0; j < config.num_rows.length; j++) {
                 System.out.println("Starting iteration over " + ram / 1000000 + " MB");
                 CMJoin cmj = new CMJoin();
-                cmj.initialize(d, ram, config.num_rows[j], con);
+                cmj.initialize(d, d.attrMap, ram, config.num_rows[j], con);
                 queryCM(cmj);
             }
         }
@@ -59,7 +59,7 @@ public class RunJoinExperiment {
 
 
         for (Query q : d.getQueries()) {
-            int estimate = cmj.query(q.syn_query);
+            double estimate = cmj.query(q.syn_query);
             double error = estimate - q.getResult();
             System.out.println("Query " + q.getName() + " error: " + error + " exact: " + q.getResult() + " estimate: " +estimate);
         }

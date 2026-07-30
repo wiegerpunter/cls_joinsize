@@ -33,7 +33,7 @@ public class ChowAllPairsTest {
         data[0] = record;
         data[1] = rec2;
         double[][] MIs = computeMIs(data);
-        ChowMinAllPairs c = new ChowMinAllPairs("t1",numAttributes,3, ram);
+        ChowMinAllPairs c = new ChowMinAllPairs("t1",new String[0],numAttributes,3, ram);
         c.setMIs(MIs, false);
         c.addIntArr(record);
         c.addIntArr(rec2);
