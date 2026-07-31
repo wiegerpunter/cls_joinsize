@@ -84,7 +84,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     public void computeHashes(String attrValue, int[] hashes, int[] seeds) {
         for (int i = 0; i < d; i++) {
-            hashes[i] = mix(attrValue.hashCode(), seeds[i], w);
+            if (attrValue == null) {
+                hashes[i] = -1;
+            } else {
+                hashes[i] = mix(attrValue.hashCode(), seeds[i], w);
+            }
         }
     }
 
@@ -105,9 +109,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             String v = record[att];
-            if (v == null) {
-                return; // return if null, don't add rec value to sketch
-            }
             computeHashes(v, h, s);
         }
         addToSketch();
@@ -120,6 +121,9 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 int[] ha2 = hashes[a2];
                 int sid = sketch_idx(a1, a2);
                 for (int j = 0; j < d; j++) {
+                    if (ha1[j] == -1 || ha2[j] == -1) {
+                        continue; // ignore null attribute values. Future version: don't make pairwise sketches with attributes that are all null.
+                    }
                     sketches[sid].CMR[sketches[sid].idx(j,ha1[j],ha2[j])] +=1;
                 }
             }

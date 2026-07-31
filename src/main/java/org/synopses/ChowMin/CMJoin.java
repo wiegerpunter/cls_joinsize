@@ -65,7 +65,7 @@ public class CMJoin {
 
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            estimates[j] = estimateJoinSize(j, synQuery, filtered);
+            estimates[j] = estimateJoinSize(synQuery, filtered);
         }
         Arrays.sort(estimates);
         return estimates[depth/2];
@@ -78,7 +78,7 @@ public class CMJoin {
         return map;
     }
 
-    private double estimateJoinSize(int j, SynopsisQuery query, Map<String, FilteredTable> filtered) {
+    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered) {
         // All unique join keys participating in the query
 
         int w = cmj.values().iterator().next().getw();
