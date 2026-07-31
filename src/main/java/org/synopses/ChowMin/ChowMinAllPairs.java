@@ -21,35 +21,50 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      */
     TWODCM[] sketches;
     List<Edge> edges;
-    private final int d;
-    private final int w;
+    private final int depth;
+    private final int width;
     private final int[][] seeds;
     private final int[][] hashes;
     private double[][] MIs;
     final private String table;
     final private String[] columns;
 
-    public ChowMinAllPairs(String table, String[] columns, int numAttributes, int depth, int width, int ram) {
+    public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
+                           int numAttributes, int depth, int width, int ram) {
         this.table = table;
         this.columns = columns;
         this.ram = ram;
         this.numAttributes = numAttributes;
         int[] params = getParams(ram, numAttributes, depth, width);
-        this.d = params[0];
-        this.w = params[1];
+        this.depth = params[0];
+        this.width = params[1];
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(d, w, a1, a2, columns[a1], columns[a2]);
+
+                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.width, a1, a2,
+                        getAttrSpecHashCode(a1, globalColToJoinKey), getAttrSpecHashCode(a2, globalColToJoinKey));
             }
         }
-        seeds = new int[numAttributes][d];
+        seeds = new int[numAttributes][this.depth];
         for (int i = 0; i < numAttributes; i++) {
+            int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey);
             for (int j = 0; j < seeds[i].length; j++) {
-                seeds[i][j] = j + columns[i].hashCode();
+                seeds[i][j] = j + attrSpecSeed;
             }
         }
-        hashes = new int[numAttributes][d];
+        hashes = new int[numAttributes][this.depth];
+    }
+
+    private int getAttrSpecHashCode(int colidx, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey) {
+        SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, columns[colidx]);
+        int attrSpecSeed;
+        if (globalColToJoinKey.containsKey(c)) {
+            attrSpecSeed = globalColToJoinKey.get(c).hashCode();
+        } else {
+            attrSpecSeed = columns[colidx].hashCode();
+        }
+        return attrSpecSeed;
     }
 
     private int sketch_idx(int a1, int a2) {
@@ -77,17 +92,17 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
-        for (int i = 0; i < d; i++) {
-            hashes[i] = mix(attrValue, seeds[i], w);
+        for (int i = 0; i < depth; i++) {
+            hashes[i] = mix(attrValue, seeds[i], width);
         }
     }
 
     public void computeHashes(String attrValue, int[] hashes, int[] seeds) {
-        for (int i = 0; i < d; i++) {
+        for (int i = 0; i < depth; i++) {
             if (attrValue == null) {
                 hashes[i] = -1;
             } else {
-                hashes[i] = mix(attrValue.hashCode(), seeds[i], w);
+                hashes[i] = mix(attrValue.hashCode(), seeds[i], width);
             }
         }
     }
@@ -120,7 +135,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 int[] ha1 = hashes[a1];
                 int[] ha2 = hashes[a2];
                 int sid = sketch_idx(a1, a2);
-                for (int j = 0; j < d; j++) {
+                for (int j = 0; j < depth; j++) {
                     if (ha1[j] == -1 || ha2[j] == -1) {
                         continue; // ignore null attribute values. Future version: don't make pairwise sketches with attributes that are all null.
                     }
@@ -231,12 +246,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     private int pathQuery(int numDimensions, int[] indices, List<Edge> f) {
         double sum = 0;
-        int[][] k = new int[d][numAttributes];
+        int[][] k = new int[depth][numAttributes];
         while (true) {
             for (int i = 0; i < numDimensions; i++) {
                 AttributeDimension dim = attributeDimensions.get(i);
                 int codomainIndex = indices[i];
-                for (int j = 0; j < d; j++) {
+                for (int j = 0; j < depth; j++) {
                     k[j][dim.attribute] = dim.valuesPerCodomain[j][codomainIndex];
                 }
             }
@@ -276,13 +291,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     public double[][] estimateMIs() {
 //        double[] MIs = new HashMap<>();
-        double[][] MIs = new double[numAttributes*(numAttributes-1)/2][2+this.d];
+        double[][] MIs = new double[numAttributes*(numAttributes-1)/2][2+this.depth];
         for (int a1 = 0; a1 < numAttributes-1; a1++) {
             for (int a2 = a1+1; a2 < numAttributes; a2++) {
                 int sketch_idx = sketch_idx(a1, a2);
-                double[] MIsList = new double[this.d];
+                double[] MIsList = new double[this.depth];
 
-                for (int j = 0; j < d; j++) {
+                for (int j = 0; j < depth; j++) {
                     double mi = estMI(a1, a2, sketch_idx, j);
                     MIsList[j] = mi;
                 }
@@ -296,9 +311,9 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     private double estMI(int a1, int a2, int sketch_idx, int j) {
         double mi = 0;
-        for (int w1 = 0; w1 < this.w; w1++) {
+        for (int w1 = 0; w1 < this.width; w1++) {
             double marg1 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a1, w1, j);
-            for (int w2 = 0; w2 < this.w; w2++) {
+            for (int w2 = 0; w2 < this.width; w2++) {
                 double joint = this.sketches[sketch_idx].jointCodomain(w1, w2,j);
                 double marg2 = this.sketches[sketch_idx_first(a2)].queryMarginalCodomain(a2, w2,j);
                 double mi_iter= joint/N * Math.log((joint/N )/ (marg1/N * marg2/N));
@@ -319,7 +334,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
             int[] codomain;
             codomain = getCodomain(i, record[i]); // format int[d rows]
-            int[][] valuesCodomain = new int[d][1];
+            int[][] valuesCodomain = new int[depth][1];
             for (int j = 0; j < codomain.length; j++) {
                 valuesCodomain[j] = new int[]{codomain[j]};
             }
@@ -336,7 +351,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
             int[] codomain;
             codomain = getCodomain(i, record[i]); // format int[d rows]
-            int[][] valuesCodomain = new int[d][1];
+            int[][] valuesCodomain = new int[depth][1];
             for (int j = 0; j < codomain.length; j++) {
                 valuesCodomain[j] = new int[]{codomain[j]};
             }
@@ -427,10 +442,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
 
     public int getd() {
-        return d;
+        return depth;
     }
     public int getw() {
-        return w;
+        return width;
     }
 
     public double getN() {
@@ -514,11 +529,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             if (bucketPerAttribute.containsKey(attr)) {
                 int bucket = bucketPerAttribute.get(attr);
                 // Join key fixed to bucket b
-                valuesCodomain = new int[d][1];
+                valuesCodomain = new int[depth][1];
                 valuesCodomain[j][0] = bucket;
 
                 // other repetitions are unused, but fill anyway
-                for (int r = 0; r < d; r++) {
+                for (int r = 0; r < depth; r++) {
                     valuesCodomain[r][0] = bucket;
                 }
             }
@@ -526,8 +541,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 // Predicate attribute
                 int[] codomain = getCodomain(attr, record[attr]);
 
-                valuesCodomain = new int[d][1];
-                for (int r = 0; r < d; r++) {
+                valuesCodomain = new int[depth][1];
+                for (int r = 0; r < depth; r++) {
                     valuesCodomain[r][0] = codomain[r];
                 }
             }

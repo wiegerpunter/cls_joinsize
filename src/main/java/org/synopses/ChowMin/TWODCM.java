@@ -36,7 +36,7 @@ public class TWODCM {
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
-    public TWODCM(int depth, int width, int s, int t, String sName, String tName) {
+    public TWODCM(int depth, int width, int s, int t, int sHashCode, int tHashCode) {
         this.depth = depth;
         this.width = width;
         this.attrS = s;
@@ -46,8 +46,8 @@ public class TWODCM {
         seedsT = new int[depth];
 
         for (int j = 0; j < seedsS.length; j++) {
-            seedsS[j] = j + sName.hashCode(); // todo: make consistent with attr.hashCode()
-            seedsT[j] = j + tName.hashCode();
+            seedsS[j] = j + sHashCode;
+            seedsT[j] = j + tHashCode;
         }
         CMR = new int[depth * width * width];
         reusableHashesS = new int[depth];

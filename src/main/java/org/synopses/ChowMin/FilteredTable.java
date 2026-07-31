@@ -4,11 +4,13 @@ import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import org.dataset.SynopsisQuery;
 
+import javax.script.AbstractScriptEngine;
 import java.util.*;
 
 public class FilteredTable {
-    private final List<SynopsisQuery.ColumnKey> unqColumns;
-    String tableName;
+    final List<SynopsisQuery.ColumnKey> unqColumns;
+    public int numJoinKeysInTable;
+    public List<String> joinKeys;
     Table t;
     SynopsisQuery q;
     ChowMinAllPairs s;
@@ -16,8 +18,7 @@ public class FilteredTable {
     // For one join key: [w]
     // For two join keys: [w][w]
     double[] view;
-    int[] globalJoinDims;
-    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
+    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s, Map<String, Integer> globalJoinKeyId, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey) {
         this.t = t;
         this.q = query;
         this.s = s;
@@ -25,13 +26,6 @@ public class FilteredTable {
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
         int total = (int) Math.pow(s.getw(), k);
-        globalJoinDims = new int[k];
-
-        for (int i = 0; i < unqColumns.size(); i++) {
-            SynopsisQuery.ColumnKey ck = unqColumns.get(i);
-            globalJoinDims[i] =
-                    query.joinKeyId.get(query.columnToJoinKey.get(ck));
-        }
 
         view = new double[total];
 
@@ -73,18 +67,14 @@ public class FilteredTable {
         Set<SynopsisQuery.ColumnKey> unqColumns = new HashSet<>();
         for (SynopsisQuery.JoinPredicate j : q.joins) {
             if (j.left().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(SynopsisQuery.ColumnKey.of(j.left()));
+                unqColumns.add(SynopsisQuery.ColumnKey.of(j.left(), q.aliasMap));
             }
             if (j.right().getTableName().equals(t.getAlias().getName())) {
-                unqColumns.add(SynopsisQuery.ColumnKey.of(j.right()));
+                unqColumns.add(SynopsisQuery.ColumnKey.of(j.right(), q.aliasMap));
             }
         }
         List<SynopsisQuery.ColumnKey> unqColumnList = new ArrayList<>(unqColumns.size());
         unqColumnList.addAll(unqColumns);
         return unqColumnList;
-    }
-
-    public List<SynopsisQuery.ColumnKey> getUnqColumns() {
-        return unqColumns;
     }
 }

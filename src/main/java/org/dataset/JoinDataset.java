@@ -1,43 +1,18 @@
 package org.dataset;
 
 import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.schema.Column;
 import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
 import java.io.*;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.dataset.SynopsisQuery.ColumnKey;
 
-class DSU {
-    Map<String, String> parent = new HashMap<>();
-
-    String find(String x) {
-        parent.putIfAbsent(x, x);
-        if (!parent.get(x).equals(x)) {
-            parent.put(x, find(parent.get(x)));
-        }
-        return parent.get(x);
-    }
-
-    void union(String a, String b) {
-        String pa = find(a);
-        String pb = find(b);
-        if (!pa.equals(pb)) {
-            parent.put(pa, pb);
-        }
-    }
-
-    Map<String, Set<String>> groups() {
-        Map<String, Set<String>> res = new HashMap<>();
-        for (String x : parent.keySet()) {
-            String root = find(x);
-            res.computeIfAbsent(root, k -> new HashSet<>()).add(x);
-        }
-        return res;
-    }
-}
 public class JoinDataset {
     DuckDBConnection con;
     // Class contains the equivalent join keys, names of all tables,
@@ -45,6 +20,9 @@ public class JoinDataset {
     public String[] tableNames;
     public HashMap<String, Integer> numColumnsPerTable;
     public HashMap<String, String[]> attrMap;
+    public Map<ColumnKey,String> globalColToJoinKey = new HashMap<>();
+    public Map<String, Map<String, String>> globalJoinKeyToTableColumn = new HashMap<>();
+    public Map<String, Integer> globalJoinKeyId = new HashMap<>();
 
     public JoinDataset(DuckDBConnection con, Config config) throws SQLException, IOException, JSQLParserException {
         this.con = con;
@@ -55,7 +33,6 @@ public class JoinDataset {
             System.out.println("Query " + q.query_name + " has answer: " + q.query_result);
         }
         this.getTableNames();
-        Map<String, Set<String>> eqjkg = this.getEquivalentJoinKeyGroups();
      }
 
     private void getExactAnswers() throws SQLException {
@@ -89,6 +66,38 @@ public class JoinDataset {
                 }
             }
         }
+        UnionFind<SynopsisQuery.ColumnKey> uf = new UnionFind<>();
+
+        for (Query q : queries) {
+            for (SynopsisQuery.JoinPredicate jp : q.syn_query.joins) {
+                uf.union(
+                        ColumnKey.of(jp.left(), q.syn_query.aliasMap),
+                        ColumnKey.of(jp.right(), q.syn_query.aliasMap)
+                );
+            }
+        }
+
+        Map<ColumnKey,String> rootToId = new HashMap<>();
+
+        AtomicInteger nextId = new AtomicInteger();
+
+        for (ColumnKey c : uf.getAllElements()) {
+
+            ColumnKey root = uf.find(c);
+
+            String key = rootToId.computeIfAbsent(root, r -> "J"+nextId.getAndIncrement());
+
+            globalColToJoinKey.put(c, key);
+            globalJoinKeyToTableColumn.computeIfAbsent(key, k -> new HashMap<>()).put(c.table(), c.column());
+        }
+        for (String key : globalJoinKeyToTableColumn.keySet()) {
+            globalJoinKeyId.put(key, (int) key.charAt(1));
+        }
+        for (Query q : queries) {
+            SynopsisQuery sq = q.syn_query;
+            sq.setGlobalJoinKeysInQuery(globalColToJoinKey);
+        }
+
         if (!queries.isEmpty()) {
             Query[] qs = new Query[queries.size()];
             for (int i = 0; i<qs.length; i++){
@@ -130,35 +139,6 @@ public class JoinDataset {
         }
 
         return map;
-    }
-
-    private Map<String, Set<String>> getEquivalentJoinKeyGroups() {
-        Pattern fromPattern =
-                Pattern.compile("from\\s+(.*?)\\s+where", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
-        Pattern joinPattern = Pattern.compile("(\\w+\\.\\w+)\\s*=\\s*(\\w+\\.\\w+)");
-
-        DSU dsu = new DSU();
-
-        for (Query q : queries) {
-            Matcher mf = fromPattern.matcher(q.query_text);
-
-            if (!mf.find()) {
-                continue; // or throw error
-            }
-
-            String fromBlock = mf.group(1);
-            Map<String, String> aliasToTable = buildAliasMap(fromBlock);
-            Matcher m = joinPattern.matcher(q.query_text);
-            while (m.find()) {
-                String left = normalize(m.group(1), aliasToTable);
-                String right = normalize(m.group(2), aliasToTable);
-
-                dsu.union(left, right);
-            }
-        }
-
-        return dsu.groups();
     }
 
     private void getTableNames() throws SQLException {
@@ -210,5 +190,33 @@ public class JoinDataset {
         return queries;
     }
 
+    private static class UnionFind<T> {
 
+        private final Map<T,T> parent = new HashMap<>();
+
+        public T find(T x) {
+            parent.putIfAbsent(x, x);
+
+            if (!parent.get(x).equals(x)) {
+                parent.put(x, find(parent.get(x)));
+            }
+
+            return parent.get(x);
+        }
+
+
+        public void union(T a, T b) {
+
+            T ra = find(a);
+            T rb = find(b);
+
+            if (!ra.equals(rb)) {
+                parent.put(ra, rb);
+            }
+        }
+
+        public Set<T> getAllElements() {
+            return parent.keySet();
+        }
+    }
 }

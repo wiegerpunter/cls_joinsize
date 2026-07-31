@@ -11,21 +11,40 @@ import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class SynopsisQuery {
     public List<Table> tables;
     public List<EqualsTo> selections = new ArrayList<>();
     public List<JoinPredicate> joins = new ArrayList<>();
+    public Set<String> globalJoinKeysInQuerySet;
     public HashMap<String, String> aliasMap;
-    public final Map<ColumnKey, String> columnToJoinKey = new HashMap<>();
-    public final Map<String, Map<String, Column>> joinKeyToTableColumn = new HashMap<>();
-    public final Map<String, Integer> joinKeyId = new HashMap<>();
+    public int numJoinKeys;
+    int[] globalToLocal;
+    public HashMap<String, Integer> jkToBucket;
+
+    public void setGlobalJoinKeysInQuery(Map<ColumnKey, String> globalColToJoinKey) {
+        globalJoinKeysInQuerySet = new HashSet<>();
+        for (JoinPredicate jp : joins) {
+
+            ColumnKey ck = ColumnKey.of(jp.left(), aliasMap);
+
+            String global = globalColToJoinKey.get(ck);
+
+            globalJoinKeysInQuerySet.add(global);
+        }
+        numJoinKeys = globalJoinKeysInQuerySet.size();
+        jkToBucket = new HashMap<>();
+        int i =0;
+        for (String jk : globalJoinKeysInQuerySet) {
+            jkToBucket.put(jk, i);
+            i++;
+        }
+    }
 
     public record ColumnKey(String table, String column) {
-        public static ColumnKey of(Column c) {
+        public static ColumnKey of(Column c, HashMap<String, String> aliasMap) {
             return new ColumnKey(
-                    c.getTable().getName(),
+                    aliasMap.get(c.getTable().getName()),
                     c.getColumnName()
             );
         }
@@ -42,7 +61,6 @@ public class SynopsisQuery {
         parseTables(select);
         setAliasMap();
         parseWhere(select);
-        buildEquivalentJoinKeys2();
     }
 
     public void setAliasMap(){
@@ -109,108 +127,13 @@ public class SynopsisQuery {
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-//                    selections.add(eq);
-                    continue; // debug w/o local predicates
+                    selections.add(eq);
+//                    continue; // debug w/o local predicates
                 }
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.
         }
     }
 
-    private void buildEquivalentJoinKeys() {
-        boolean[] addedJoin = new boolean[joins.size()];
-        int counter =1;
-        for (int i = 0; i<joins.size(); i++){
-            if (addedJoin[i]) {
-                continue;
-            }
-            String tleft = joins.get(i).left().getTableName();
-            Column cleft = joins.get(i).left();
-            String tright = joins.get(i).right().getTableName();
-            Column cright = joins.get(i).right();
-            if (!columnToJoinKey.containsKey(ColumnKey.of(cleft)) && !columnToJoinKey.containsKey(ColumnKey.of(cright))) {
-                String key = "J" + counter;
-                joinKeyId.put(key, counter - 1);
-                counter += 1;
-                columnToJoinKey.put(ColumnKey.of(cleft), key);
-                columnToJoinKey.put(ColumnKey.of(cright), key);
-                HashMap<String, Column> mapOfKey = new HashMap<>();
-                mapOfKey.put(tleft, cleft);
-                mapOfKey.put(tright, cright);
-                joinKeyToTableColumn.put(key, mapOfKey);
-            } else if (columnToJoinKey.containsKey(ColumnKey.of(cleft)) && !columnToJoinKey.containsKey(ColumnKey.of(cright))) {
-                String key = columnToJoinKey.get(ColumnKey.of(cleft));
-                columnToJoinKey.put(ColumnKey.of(cright), key);
-                HashMap<String, Column> mapOfKey = (HashMap<String, Column>) joinKeyToTableColumn.get(key);
-                mapOfKey.put(tright, cright); // check if map needs to be put back or if sufficient.
-            } else if (!columnToJoinKey.containsKey(ColumnKey.of(cleft)) && columnToJoinKey.containsKey(ColumnKey.of(cright))) {
-                String key = columnToJoinKey.get(ColumnKey.of(cright));
-                columnToJoinKey.put(ColumnKey.of(cleft), key);
-                HashMap<String, Column> mapOfKey = (HashMap<String, Column>) joinKeyToTableColumn.get(key);
-                mapOfKey.put(tleft, cleft); // check if map needs to be put back or if sufficient.
-            }
-            addedJoin[i] = true;
-        }
-    }
 
-    private void buildEquivalentJoinKeys2() {
-
-        UnionFind<ColumnKey> uf = new UnionFind<>();
-
-        for (JoinPredicate jp : joins) {
-            uf.union(ColumnKey.of(jp.left()), ColumnKey.of(jp.right()));
-        }
-
-        Map<ColumnKey, String> rootToKey = new HashMap<>();
-        AtomicInteger counter = new AtomicInteger();
-
-        for (JoinPredicate jp : joins) {
-
-            for (Column c : List.of(jp.left(), jp.right())) {
-
-                ColumnKey root = uf.find(ColumnKey.of(c));
-
-                String key = rootToKey.computeIfAbsent(
-                        root,
-                        r-> "J" + counter.getAndIncrement()
-                );
-
-                joinKeyId.put(key, counter.get() - 1);
-
-                columnToJoinKey.put(ColumnKey.of(c), key);
-
-                joinKeyToTableColumn
-                        .computeIfAbsent(key, k -> new HashMap<>())
-                        .put(
-                                c.getTable().getName(),
-                                c
-                        );
-            }
-        }
-    }
-    private static class UnionFind<T> {
-
-        private final Map<T,T> parent = new HashMap<>();
-
-        public T find(T x) {
-            parent.putIfAbsent(x, x);
-
-            if (!parent.get(x).equals(x)) {
-                parent.put(x, find(parent.get(x)));
-            }
-
-            return parent.get(x);
-        }
-
-
-        public void union(T a, T b) {
-
-            T ra = find(a);
-            T rb = find(b);
-
-            if (!ra.equals(rb)) {
-                parent.put(ra, rb);
-            }
-        }
-    }
 }

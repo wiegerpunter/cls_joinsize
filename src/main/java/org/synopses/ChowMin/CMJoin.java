@@ -1,6 +1,5 @@
 package org.synopses.ChowMin;
 
-import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
@@ -10,7 +9,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
-import java.util.logging.Filter;
 
 import static org.synopses.ChowMin.FilteredTable.decodeIdx;
 import static org.synopses.ChowMin.FilteredTable.getIdx;
@@ -20,21 +18,23 @@ public class CMJoin {
     HashMap<String, String[]> attrMap;
     int depth;
     int width;
+    JoinDataset jd;
 
     public CMJoin() {
         cmj = new HashMap<>();
         attrMap = new HashMap<>();
     }
 
-    public void initialize(JoinDataset d, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
+    public void initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
         this.depth = depth;
         this.width = width;
-        HashMap<String, Integer> numColumnsPerTable = d.numColumnsPerTable;
+        this.jd = jd;
+        HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
 
-        for (String t : d.tableNames) {
-            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), numColumnsPerTable.get(t), depth, width, ram);
+        for (String t : jd.tableNames) {
+            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram);
 
-            int numColumns = d.numColumnsPerTable.get(t);
+            int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();
                  ResultSet rs = stmt.executeQuery(dataQuery);
@@ -73,7 +73,7 @@ public class CMJoin {
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
-            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
+            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName()), jd.globalJoinKeyId, jd.globalColToJoinKey));
         }
         return map;
     }
@@ -81,14 +81,14 @@ public class CMJoin {
     private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered, int w) {
         // All unique join keys participating in the query
         double estimate = 0.0;
-        // Enumerate all possible codomains of the equivalent join keys
-        int numJoinKeys = query.joinKeyToTableColumn.size();
+        // Enumerate all possible codomains of the equivalent join keys in this query
+        int numJoinKeys = query.numJoinKeys;
         int totalBuckets = (int) Math.pow(w, numJoinKeys);
         System.out.println("Join with "+ numJoinKeys + " has " + totalBuckets + " options");
         int[][] tableBuckets = new int[filtered.size()][];
         int t=0;
         for (FilteredTable ft:filtered.values()) {
-            tableBuckets[t] = new int[ft.globalJoinDims.length];
+            tableBuckets[t] = new int[ft.unqColumns.size()];
             t++;
         }
         for (int idx = 0; idx < totalBuckets; idx++) {
@@ -96,8 +96,8 @@ public class CMJoin {
             double product = 1.0;
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
-                for (int i = 0; i < ft.globalJoinDims.length; i++) {
-                    tableBuckets[tloop][i] = bucketAssignment[ft.globalJoinDims[i]];
+                for (int i = 0; i < ft.unqColumns.size(); i++) {
+                    tableBuckets[tloop][i] = bucketAssignment[query.jkToBucket.get(jd.globalColToJoinKey.get(ft.unqColumns.get(i)))];
                 }
                 int viewIdx = getIdx(tableBuckets[tloop], w);
                 product *= ft.view[viewIdx];
