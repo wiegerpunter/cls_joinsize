@@ -16,6 +16,7 @@ public class FilteredTable {
     // For one join key: [w]
     // For two join keys: [w][w]
     double[] view;
+    int[] globalJoinDims;
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
         this.q = query;
@@ -24,6 +25,13 @@ public class FilteredTable {
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
         int total = (int) Math.pow(s.getw(), k);
+        globalJoinDims = new int[k];
+
+        for (int i = 0; i < unqColumns.size(); i++) {
+            SynopsisQuery.ColumnKey ck = unqColumns.get(i);
+            globalJoinDims[i] =
+                    query.joinKeyId.get(query.columnToJoinKey.get(ck));
+        }
 
         view = new double[total];
 

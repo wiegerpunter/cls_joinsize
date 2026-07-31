@@ -40,7 +40,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(d, w, a1, a2);
+                sketches[sketch_idx(a1, a2)] = new TWODCM(d, w, a1, a2, columns[a1], columns[a2]);
             }
         }
         seeds = new int[numAttributes][d];
@@ -453,9 +453,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // null = latent / not queried
         String[] record = new String[numAttributes];
         Arrays.fill(record, null);
-
         HashSet<Integer> active = new HashSet<>();
-
 
         // local predicates
         for (EqualsTo eq : selectionPredicatesPerTable) {

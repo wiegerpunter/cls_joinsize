@@ -65,7 +65,7 @@ public class CMJoin {
 
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            estimates[j] = estimateJoinSize(synQuery, filtered);
+            estimates[j] = estimateJoinSize(synQuery, filtered, width);
         }
         Arrays.sort(estimates);
         return estimates[depth/2];
@@ -78,26 +78,30 @@ public class CMJoin {
         return map;
     }
 
-    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered) {
+    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered, int w) {
         // All unique join keys participating in the query
-
-        int w = cmj.values().iterator().next().getw();
         double estimate = 0.0;
         // Enumerate all possible codomains of the equivalent join keys
-        int totalBuckets = (int) Math.pow(w, query.joinKeyToTableColumn.size());
+        int numJoinKeys = query.joinKeyToTableColumn.size();
+        int totalBuckets = (int) Math.pow(w, numJoinKeys);
+        System.out.println("Join with "+ numJoinKeys + " has " + totalBuckets + " options");
+        int[][] tableBuckets = new int[filtered.size()][];
+        int t=0;
+        for (FilteredTable ft:filtered.values()) {
+            tableBuckets[t] = new int[ft.globalJoinDims.length];
+            t++;
+        }
         for (int idx = 0; idx < totalBuckets; idx++) {
-            int[] bucketAssignment = decodeIdx(idx, query.joinKeyToTableColumn.size(), w);
+            int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
             double product = 1.0;
+            int tloop=0;
             for (FilteredTable ft : filtered.values()) {
-                int[] tableBuckets = new int[ft.getUnqColumns().size()];
-                for (int i = 0; i < ft.getUnqColumns().size(); i++) {
-                    SynopsisQuery.ColumnKey columnKey = ft.getUnqColumns().get(i);
-                    String joinKey = query.columnToJoinKey.get(columnKey);
-                    int joinKeyId = query.joinKeyId.get(joinKey);
-                    tableBuckets[i] = bucketAssignment[joinKeyId];
+                for (int i = 0; i < ft.globalJoinDims.length; i++) {
+                    tableBuckets[tloop][i] = bucketAssignment[ft.globalJoinDims[i]];
                 }
-                int viewIdx = getIdx(tableBuckets, w);
+                int viewIdx = getIdx(tableBuckets[tloop], w);
                 product *= ft.view[viewIdx];
+                tloop++;
             }
             estimate += product;
         }

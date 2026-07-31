@@ -29,32 +29,14 @@ public class TWODCM {
         seedsT = new int[depth];
 
         for (int j = 0; j < seedsS.length; j++) {
-            seedsS[j] = j + attrS;
+            seedsS[j] = j + attrS; // todo: make consistent with attr.hashCode() if ever using this
             seedsT[j] = j + attrT;
         }
-
-
-//        CM = new int[depth][width][width];
         CMR = new int[depth * width * width];
-//        for (int i = 0; i < depth; i++) {
-//            for (int j = 0; j < width; j++) {
-//                for  (int k = 0; k < width; k++) {
-//                    CM[i][j][k] =0;
-//                }
-//            }
-//        }
-//        xxS = new HashFunction[depth];
-//        xxT = new HashFunction[depth];
-
-//        for (int i = 0; i < depth; i++) {
-//            xxS[i] = Hashing.murmur3_32_fixed(i + attrS);
-//            xxT[i] = Hashing.murmur3_32_fixed(i + attrT);
-//
-//        }
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
-    public TWODCM(int depth, int width, int s, int t) {
+    public TWODCM(int depth, int width, int s, int t, String sName, String tName) {
         this.depth = depth;
         this.width = width;
         this.attrS = s;
@@ -64,8 +46,8 @@ public class TWODCM {
         seedsT = new int[depth];
 
         for (int j = 0; j < seedsS.length; j++) {
-            seedsS[j] = j + attrS;
-            seedsT[j] = j + attrT;
+            seedsS[j] = j + sName.hashCode(); // todo: make consistent with attr.hashCode()
+            seedsT[j] = j + tName.hashCode();
         }
         CMR = new int[depth * width * width];
         reusableHashesS = new int[depth];
@@ -183,7 +165,7 @@ public class TWODCM {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < k.length; j++) {
 //                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
-                int estimate = CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])];
+                int estimate = CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])]; // TODO: how can 16 be 0??
                 if (minEstimate > estimate) {
                     minEstimate = estimate;
                 }

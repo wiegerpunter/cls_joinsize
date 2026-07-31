@@ -10,7 +10,6 @@ import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 
-import javax.script.AbstractScriptEngine;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,7 +42,7 @@ public class SynopsisQuery {
         parseTables(select);
         setAliasMap();
         parseWhere(select);
-        buildEquivalentJoinKeys();
+        buildEquivalentJoinKeys2();
     }
 
     public void setAliasMap(){
@@ -110,10 +109,9 @@ public class SynopsisQuery {
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-                    selections.add(eq);
-//                    continue; // debug w/o local predicates
+//                    selections.add(eq);
+                    continue; // debug w/o local predicates
                 }
-
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.
         }
@@ -152,6 +150,67 @@ public class SynopsisQuery {
                 mapOfKey.put(tleft, cleft); // check if map needs to be put back or if sufficient.
             }
             addedJoin[i] = true;
+        }
+    }
+
+    private void buildEquivalentJoinKeys2() {
+
+        UnionFind<ColumnKey> uf = new UnionFind<>();
+
+        for (JoinPredicate jp : joins) {
+            uf.union(ColumnKey.of(jp.left()), ColumnKey.of(jp.right()));
+        }
+
+        Map<ColumnKey, String> rootToKey = new HashMap<>();
+        AtomicInteger counter = new AtomicInteger();
+
+        for (JoinPredicate jp : joins) {
+
+            for (Column c : List.of(jp.left(), jp.right())) {
+
+                ColumnKey root = uf.find(ColumnKey.of(c));
+
+                String key = rootToKey.computeIfAbsent(
+                        root,
+                        r-> "J" + counter.getAndIncrement()
+                );
+
+                joinKeyId.put(key, counter.get() - 1);
+
+                columnToJoinKey.put(ColumnKey.of(c), key);
+
+                joinKeyToTableColumn
+                        .computeIfAbsent(key, k -> new HashMap<>())
+                        .put(
+                                c.getTable().getName(),
+                                c
+                        );
+            }
+        }
+    }
+    private static class UnionFind<T> {
+
+        private final Map<T,T> parent = new HashMap<>();
+
+        public T find(T x) {
+            parent.putIfAbsent(x, x);
+
+            if (!parent.get(x).equals(x)) {
+                parent.put(x, find(parent.get(x)));
+            }
+
+            return parent.get(x);
+        }
+
+
+        public void union(T a, T b) {
+
+            T ra = find(a);
+            T rb = find(b);
+
+            if (!ra.equals(rb)) {
+                parent.put(ra, rb);
+            }
         }
     }
 }
