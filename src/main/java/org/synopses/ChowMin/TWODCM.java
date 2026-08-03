@@ -46,8 +46,8 @@ public class TWODCM {
         seedsT = new int[depth];
 
         for (int j = 0; j < seedsS.length; j++) {
-            seedsS[j] = j + sHashCode;
-            seedsT[j] = j + tHashCode;
+            seedsS[j] = (j+1)* sHashCode;
+            seedsT[j] = (j+1)* tHashCode;
         }
         CMR = new int[depth * width * width];
         reusableHashesS = new int[depth];
@@ -161,16 +161,20 @@ public class TWODCM {
         return minEstimate;
     }
 
-    public int queryCodomainWOLatent(int[][] k, Edge edge) {
+    public int queryCodomainWOLatent(int[][] k, int s, int t) {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < k.length; j++) {
 //                int estimate = CM[j][k[j][edge.getS()]][k[j][edge.getT()]];
-                int estimate = CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])]; // TODO: how can 16 be 0??
+                int estimate = queryCodomainWOLatentOneRep(j, k[j][s], k[j][t]);//CMR[idx(j, k[j][edge.getS()], k[j][edge.getT()])]; // TODO: how can 16 be 0??
                 if (minEstimate > estimate) {
                     minEstimate = estimate;
                 }
         }
         return minEstimate;
+    }
+
+    public int queryCodomainWOLatentOneRep(int j, int ks, int kt) {
+        return CMR[idx(j, ks, kt)];
     }
 
     public int jointCodomain(int w1, int w2, int j) {
@@ -207,34 +211,27 @@ public class TWODCM {
 
     public int queryMarginalCodomain(int condAttr, int[][] k, boolean hasLatent, int row) {
         int[] predIdxs;
-        int[] rows;
         if (hasLatent) {
             predIdxs = new int[1];
             predIdxs[0] = k[row][condAttr];
-            rows = new int[]{row};
         } else {
             predIdxs = new int[k.length];
-            rows = new int[k.length];
             for (int j = 0; j < predIdxs.length; j++) {
                 predIdxs[j] = k[j][condAttr];
-                rows[j] = j;
             }
         }
 
-        return marginal(predIdxs, condAttr, rows);
+        return marginal(predIdxs, condAttr);
     }
 
     public int queryMarginalCodomainWOLatent(int condAttr, int[][] k) {
         int[] predIdxs;
-        int[] rows;
         predIdxs = new int[k.length];
-        rows = new int[k.length];
         for (int j = 0; j < predIdxs.length; j++) {
             predIdxs[j] = k[j][condAttr];
-            rows[j] = j;
         }
 
-        return marginal(predIdxs, condAttr, rows);
+        return marginal(predIdxs, condAttr);
     }
 
     public int queryMarginalCodomain(int condAttr, int w1, int j) {
@@ -257,36 +254,36 @@ public class TWODCM {
 
     public int queryMarginal(int predicate, int attr) {
         int[] predIdxs = getPredIdx(predicate, attr);
-        int[] rows = IntStream.range(0, predIdxs.length).toArray();
-        return marginal(predIdxs, attr, rows);
+        return marginal(predIdxs, attr);
     }
     public int queryMarginal(String predicate, int attr) {
         int[] predIdxs = getPredIdx(predicate, attr);
-        int[] rows = IntStream.range(0, predIdxs.length).toArray();
-        return marginal(predIdxs, attr, rows);
+        return marginal(predIdxs, attr);
     }
 
-    int marginal(int[] predIdxs, int attr, int[] rows) {
+    int marginal(int[] predIdxs, int attr) {
         int minEstimate = Integer.MAX_VALUE;
         for (int j = 0; j < predIdxs.length; j++) {
-            int sumRowEst=0;
-            int predIdx = predIdxs[j];
-            if (attrS == attr) {
-                for (int i = 0; i < width; i++) {
-//                    sumRowEst += CM[rows[j]][predIdx][i];
-                    sumRowEst+= CMR[idx(rows[j], predIdx, i)];
-                }
-            } else {
-                for (int i = 0; i < width; i++) {
-//                    sumRowEst += CM[rows[j]][i][predIdx];
-                    sumRowEst += CMR[idx(rows[j], i, predIdx)];
-                }
-            }
+            int sumRowEst= marginalOneRep(j, attr, predIdxs[j]);
             if (minEstimate > sumRowEst) {
                 minEstimate = sumRowEst;
             }
         }
         return minEstimate;
+    }
+
+    int marginalOneRep(int rep, int attr,int predIdx) {
+        int sumRowEst=0;
+        if (attrS == attr) {
+            for (int i = 0; i < width; i++) {
+                sumRowEst+= CMR[idx(rep, predIdx, i)];
+            }
+        } else {
+            for (int i = 0; i < width; i++) {
+                sumRowEst += CMR[idx(rep, i, predIdx)];
+            }
+        }
+        return sumRowEst;
     }
 
     int[] getPredIdx(int predicate, int attr) {

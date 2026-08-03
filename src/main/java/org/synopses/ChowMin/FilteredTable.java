@@ -18,7 +18,7 @@ public class FilteredTable {
     // For one join key: [w]
     // For two join keys: [w][w]
     double[] view;
-    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s, Map<String, Integer> globalJoinKeyId, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey) {
+    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
         this.q = query;
         this.s = s;

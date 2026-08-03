@@ -56,6 +56,9 @@ public class RunJoinExperiment {
 
 
         for (Query q : d.getQueries()) {
+            if (q.getName().equals("28c.sql")) {
+                System.out.println("inspect");
+            }
             double estimate = cmj.query(q.syn_query);
             double error = estimate - q.getResult();
             System.out.println("Query " + q.getName() + " error: " + error + " exact: " + q.getResult() + " estimate: " +estimate);

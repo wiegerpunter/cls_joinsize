@@ -82,7 +82,13 @@ public class SynopsisQuery {
     }
     public record JoinPredicate(
             Column left, Column right
-    ) {}
+    ) {
+        @Override
+        public String toString() {
+            return left.toString() +", " + right.toString();
+        }
+
+    }
 
 
     private void parseTables(PlainSelect select) {
@@ -127,8 +133,8 @@ public class SynopsisQuery {
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-                    selections.add(eq);
-//                    continue; // debug w/o local predicates
+//                    selections.add(eq);
+                    continue; // debug w/o local predicates
                 }
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.

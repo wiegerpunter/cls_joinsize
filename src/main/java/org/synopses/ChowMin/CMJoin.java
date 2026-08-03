@@ -62,7 +62,6 @@ public class CMJoin {
         // 2. apply predicates selecting for the eq join key something that it has to multiply with
         // 3. join size is estimated by inference procedure over the chowmin hash codomains per eq join key and multiplying with the local predicate tensors.
         double[] estimates = new double[depth];
-
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
             estimates[j] = estimateJoinSize(synQuery, filtered, width);
@@ -73,7 +72,14 @@ public class CMJoin {
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
-            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName()), jd.globalJoinKeyId, jd.globalColToJoinKey));
+            if (t.getAlias().getName().equals("cc")) {
+                System.out.println("Inspect filter table cc");
+                // test marginals
+                if (cmj.get(t.getName()).testMarginals(j, 1, 0)) {
+                    System.out.println("Test successful.");
+                }
+            }
+            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
         }
         return map;
     }
@@ -84,7 +90,6 @@ public class CMJoin {
         // Enumerate all possible codomains of the equivalent join keys in this query
         int numJoinKeys = query.numJoinKeys;
         int totalBuckets = (int) Math.pow(w, numJoinKeys);
-        System.out.println("Join with "+ numJoinKeys + " has " + totalBuckets + " options");
         int[][] tableBuckets = new int[filtered.size()][];
         int t=0;
         for (FilteredTable ft:filtered.values()) {

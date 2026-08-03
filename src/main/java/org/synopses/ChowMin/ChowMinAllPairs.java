@@ -20,7 +20,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      Pairwise summary updates counter at cell [h_x(x), h_y(y)].
      */
     TWODCM[] sketches;
-    List<Edge> edges;
     private final int depth;
     private final int width;
     private final int[][] seeds;
@@ -41,7 +40,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
-
                 sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.width, a1, a2,
                         getAttrSpecHashCode(a1, globalColToJoinKey), getAttrSpecHashCode(a2, globalColToJoinKey));
             }
@@ -50,7 +48,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (int i = 0; i < numAttributes; i++) {
             int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey);
             for (int j = 0; j < seeds[i].length; j++) {
-                seeds[i][j] = j + attrSpecSeed;
+                seeds[i][j] = (j+1)*attrSpecSeed;
             }
         }
         hashes = new int[numAttributes][this.depth];
@@ -226,9 +224,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private int marginal(Integer attr, int predicate) {
         return sketches[sketch_idx_first(attr)].queryMarginal(predicate, attr);
     }
-    int queryMarginalCodomain(int condAttr, int[][] k) {
-        return sketches[sketch_idx_first(condAttr)].queryMarginalCodomainWOLatent(condAttr, k);
-    }
 
     ArrayList<AttributeDimension> attributeDimensions = new ArrayList<>();
     private int queryFactors(List<Edge> f, int[] record, HashSet<Integer> attrsInPath) {
@@ -261,10 +256,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 int s = edge.getS();
                 int t = edge.getT();
                 if (s == t) {
-                    product_p = (double) sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
+                    product_p = sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
+
                 } else {
-                    double jointFreq = (double) sketches[sketch_idx(edge.getS(), edge.getT())].queryCodomainWOLatent(k, edge);
-                    double denominator = (double) queryMarginalCodomain(s, k);
+                    double jointFreq = sketches[sketch_idx(edge.getS(), edge.getT())].queryCodomainWOLatent(k,s, t);
+                    double denominator = sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
                     product_p *= jointFreq / denominator;
                 }
             }
@@ -276,6 +272,73 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             while (pos >= 0) {
                 indices[pos]++;
                 if (indices[pos] < attributeDimensions.get(pos).codomainSize) {
+                    break;
+                }
+                indices[pos] = 0;
+                pos--;
+            }
+
+            if (pos < 0) {
+                break; // all combinations exhausted
+            }
+        }
+        return (int) (sum);
+    }
+
+    ArrayList<AttributeDimensionOneRep> attributeDimensionsOneRep = new ArrayList<>();
+
+    // Test marginals
+    public boolean testMarginals(int j, int s, int w) {
+        List<Integer> sketchesWithS = new ArrayList<>();
+        for (int i = 0; i < sketches.length; i++) {
+            TWODCM sketch = sketches[i];
+            if (sketch.attrS == s || sketch.attrT == s) {
+                sketchesWithS.add(i);
+            }
+        }
+        int[] margs = new int[sketchesWithS.size()];
+        for (int i = 0; i < margs.length; i++) {
+            int est = sketches[sketchesWithS.get(i)].marginalOneRep(j,s,w);
+            margs[i] = est;
+            if (i > 1 && margs[i] != margs[i - 1]) {
+                throw new RuntimeException("Margs not equal");
+            }
+        }
+        // check ig all margs are same;
+        return true;
+    }
+    private int pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f) {
+        double sum = 0;
+        int[] k = new int[numAttributes];
+        while (true) {
+            for (int i = 0; i < numDimensions; i++) {
+                AttributeDimensionOneRep dim = attributeDimensionsOneRep.get(i);
+                k[dim.attribute] = dim.valuesPerCodomain;
+            }
+
+            double product_p = 0;
+            for (Edge edge : f) {
+                int s = edge.getS();
+                int t = edge.getT();
+                if (s == t) {
+                    product_p = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
+                } else {
+                    double jointFreq = sketches[sketch_idx(s, t)].queryCodomainWOLatentOneRep(j, k[s], k[t]);
+                    double denominator = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
+                    if (jointFreq > denominator) {
+                        throw new RuntimeException("Joint larger than denominator");
+                    }
+                    product_p *= jointFreq / denominator;
+                }
+            }
+            if (product_p > 0) {
+                sum += product_p;
+            }
+
+            int pos = numDimensions - 1;
+            while (pos >= 0) {
+                indices[pos]++;
+                if (indices[pos] < attributeDimensionsOneRep.get(pos).codomainSize) {
                     break;
                 }
                 indices[pos] = 0;
@@ -510,57 +573,36 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                                           String[] record,
                                           HashMap<Integer, Integer> bucketPerAttribute,
                                           HashSet<Integer> active) {
-        constructDimensionsJoin(record, bucketPerAttribute, j, active);
+        constructDimensionsOneRep(record, bucketPerAttribute, j, active);
 
-        int dims = attributeDimensions.size();
+        int dims = attributeDimensionsOneRep.size();
         int[] indices = new int[dims];
 
-        return pathQuery(dims, indices, factors);
+        return pathQueryOneRep(j, dims, indices, factors);
     }
 
-    private void constructDimensionsJoin(String[] record,
-                                         HashMap<Integer, Integer> bucketPerAttribute, int j,
-                                         HashSet<Integer> active) {
-        attributeDimensions = new ArrayList<>();
+    private void constructDimensionsOneRep(String[] record,
+                                           HashMap<Integer, Integer> bucketPerAttribute, int j,
+                                           HashSet<Integer> active) {
+        attributeDimensionsOneRep = new ArrayList<>();
 
         for (int attr : active) {
-            int[][] valuesCodomain;
+            int valuesCodomain;
 
             if (bucketPerAttribute.containsKey(attr)) {
-                int bucket = bucketPerAttribute.get(attr);
                 // Join key fixed to bucket b
-                valuesCodomain = new int[depth][1];
-                valuesCodomain[j][0] = bucket;
-
-                // other repetitions are unused, but fill anyway
-                for (int r = 0; r < depth; r++) {
-                    valuesCodomain[r][0] = bucket;
-                }
+                valuesCodomain = bucketPerAttribute.get(attr);
             }
             else if (record[attr] != null) {
                 // Predicate attribute
                 int[] codomain = getCodomain(attr, record[attr]);
-
-                valuesCodomain = new int[depth][1];
-                for (int r = 0; r < depth; r++) {
-                    valuesCodomain[r][0] = codomain[r];
-                }
+                valuesCodomain = codomain[j];
             }
             else {
                 throw new RuntimeException("Inactive attribute");
             }
-//                // Latent attribute: iterate over every bucket
-//                valuesCodomain = new int[d][w];
-//
-//                for (int r = 0; r < d; r++) {
-//                    for (int c = 0; c < w; c++) {
-//                        valuesCodomain[r][c] = c;
-//                    }
-//                }
-//            }
-
-            attributeDimensions.add(
-                    new AttributeDimension(attr, valuesCodomain)
+            attributeDimensionsOneRep.add(
+                    new AttributeDimensionOneRep(attr, valuesCodomain)
             );
         }
     }
