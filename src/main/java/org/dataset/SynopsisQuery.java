@@ -133,8 +133,8 @@ public class SynopsisQuery {
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
                 } else {
                     // Selection predicate
-//                    selections.add(eq);
-                    continue; // debug w/o local predicates
+                    selections.add(eq);
+//                    continue; // debug w/o local predicates
                 }
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.

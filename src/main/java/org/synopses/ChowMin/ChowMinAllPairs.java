@@ -27,11 +27,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private double[][] MIs;
     final private String table;
     final private String[] columns;
+    private int numColumns=0;
 
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
                            int numAttributes, int depth, int width, int ram) {
         this.table = table;
         this.columns = columns;
+        numColumns = columns.length;
         this.ram = ram;
         this.numAttributes = numAttributes;
         int[] params = getParams(ram, numAttributes, depth, width);
@@ -510,10 +512,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public int getw() {
         return width;
     }
-
-    public double getN() {
-        return N;
-    }
+    public int getN() {return N;}
+    public int getNumColumns() {return numColumns;};
 
     public void setMIs(double[][] MIs, boolean estMIs) {
         this.MIs = MIs;

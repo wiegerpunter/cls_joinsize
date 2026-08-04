@@ -18,6 +18,7 @@ public class CMJoin {
     HashMap<String, String[]> attrMap;
     int depth;
     int width;
+    public String setting = "CMJoin";
     JoinDataset jd;
 
     public CMJoin() {
@@ -30,10 +31,8 @@ public class CMJoin {
         this.width = width;
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
-
         for (String t : jd.tableNames) {
             ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram);
-
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();
@@ -52,8 +51,7 @@ public class CMJoin {
             syn.setMIs(syn.estimateMIs(), true);
 
             cmj.put(t, syn);
-
-    }
+        }
     }
 
     public double query(SynopsisQuery synQuery) {
@@ -74,14 +72,6 @@ public class CMJoin {
         for (Table t: query.tables) {
 
 
-            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
-            if (t.getAlias().getName().equals("cc")) {
-                System.out.println("Inspect filter table cc");
-                // test marginals
-                if (cmj.get(t.getName()).testMarginals(j, 1, 0)) {
-                    System.out.println("Test successful.");
-                }
-            }
             map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
         }
         return map;
@@ -115,4 +105,32 @@ public class CMJoin {
         }
         return estimate;
     }
+
+    public int getDepth() {
+        return depth;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getMemory() {
+        int ram = 0;
+        for (ChowMinAllPairs sketch : cmj.values()) {
+            for (TWODCM subsketch: sketch.sketches) {
+                ram+= subsketch.memory();
+            }
+        }
+        return ram;
+    }
+
+    public int getDatasetMemory() {
+        int ram =0;
+        for (ChowMinAllPairs sketch : cmj.values()) {
+            ram = sketch.getN() * sketch.getNumColumns()*4;
+        }
+        return ram;
+
+    }
+
 }

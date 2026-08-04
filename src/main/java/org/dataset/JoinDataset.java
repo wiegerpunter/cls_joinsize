@@ -91,7 +91,7 @@ public class JoinDataset {
             globalJoinKeyToTableColumn.computeIfAbsent(key, k -> new HashMap<>()).put(c.table(), c.column());
         }
         for (String key : globalJoinKeyToTableColumn.keySet()) {
-            globalJoinKeyId.put(key, (int) key.charAt(1));
+            globalJoinKeyId.put(key, Integer.parseInt(key.substring(1)));
         }
         for (Query q : queries) {
             SynopsisQuery sq = q.syn_query;
