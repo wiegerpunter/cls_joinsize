@@ -307,7 +307,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // check ig all margs are same;
         return true;
     }
-    private int pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f) {
+    private double pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f) {
         double sum = 0;
         int[] k = new int[numAttributes];
         while (true) {
@@ -349,7 +349,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 break; // all combinations exhausted
             }
         }
-        return (int) (sum);
+        return sum;
     }
 
     public double[][] estimateMIs() {

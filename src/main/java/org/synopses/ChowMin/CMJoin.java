@@ -72,6 +72,9 @@ public class CMJoin {
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
+
+
+            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
             if (t.getAlias().getName().equals("cc")) {
                 System.out.println("Inspect filter table cc");
                 // test marginals

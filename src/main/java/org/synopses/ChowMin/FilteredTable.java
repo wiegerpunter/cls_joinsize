@@ -75,6 +75,9 @@ public class FilteredTable {
         }
         List<SynopsisQuery.ColumnKey> unqColumnList = new ArrayList<>(unqColumns.size());
         unqColumnList.addAll(unqColumns);
+        unqColumnList.sort(Comparator
+                .comparing(SynopsisQuery.ColumnKey::table)
+                .thenComparing(SynopsisQuery.ColumnKey::column));
         return unqColumnList;
     }
 }
