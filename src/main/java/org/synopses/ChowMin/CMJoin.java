@@ -26,17 +26,18 @@ public class CMJoin {
         attrMap = new HashMap<>();
     }
 
-    public void initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
+    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
         this.depth = depth;
         this.width = width;
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
+        long start = System.currentTimeMillis();
         for (String t : jd.tableNames) {
             ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram);
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();
-                 ResultSet rs = stmt.executeQuery(dataQuery);
+                 ResultSet rs = stmt.executeQuery(dataQuery)
             ) {
                 while (rs.next()) {
                     String[] rec = new String[numColumns];
@@ -48,10 +49,16 @@ public class CMJoin {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-            syn.setMIs(syn.estimateMIs(), true);
 
             cmj.put(t, syn);
         }
+        long end = System.currentTimeMillis();
+        long time=end-start;
+
+        for (ChowMinAllPairs syn : cmj.values()) {
+            syn.setMIs(syn.estimateMIs(), true);
+        }
+        return time;
     }
 
     public double query(SynopsisQuery synQuery) {
@@ -65,13 +72,11 @@ public class CMJoin {
             estimates[j] = estimateJoinSize(synQuery, filtered, width);
         }
         Arrays.sort(estimates);
-        return estimates[depth/2];
+        return estimates[0];
     }
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
-
-
             map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
         }
         return map;
@@ -91,14 +96,18 @@ public class CMJoin {
         }
         for (int idx = 0; idx < totalBuckets; idx++) {
             int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
-            double product = 1.0;
+            double product = 2^27;
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
                 for (int i = 0; i < ft.unqColumns.size(); i++) {
                     tableBuckets[tloop][i] = bucketAssignment[query.jkToBucket.get(jd.globalColToJoinKey.get(ft.unqColumns.get(i)))];
                 }
                 int viewIdx = getIdx(tableBuckets[tloop], w);
-                product *= ft.view[viewIdx];
+                double count = ft.view[viewIdx];
+                if (ft.isPrimaryKeyJoinKey()) {
+                    count = count > 0 ? 1 : 0;
+                }
+                product *= count;
                 tloop++;
             }
             estimate += product;

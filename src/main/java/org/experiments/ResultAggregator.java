@@ -4,7 +4,6 @@ import java.util.*;
 
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
-import org.jfree.data.io.CSV;
 import org.jfree.data.xy.*;
 
 public class ResultAggregator {

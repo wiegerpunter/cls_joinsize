@@ -1,7 +1,6 @@
 package org.dataset;
 
 import net.sf.jsqlparser.JSQLParserException;
-import net.sf.jsqlparser.schema.Column;
 import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
@@ -9,8 +8,7 @@ import java.io.*;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 import org.dataset.SynopsisQuery.ColumnKey;
 
 public class JoinDataset {
@@ -58,7 +56,6 @@ public class JoinDataset {
         for (File f : files){
             BufferedReader br = new BufferedReader(new FileReader(f.getAbsoluteFile()));
             if (f.getName().contains("fkindexes") || f.getName().contains("schema") || f.getName().contains("15")) {
-                continue;
             } else {
                 Query q = new Query(f.getName(), br.readLine());
                 if (q.syn_query!=null) {
@@ -86,6 +83,7 @@ public class JoinDataset {
             ColumnKey root = uf.find(c);
 
             String key = rootToId.computeIfAbsent(root, r -> "J"+nextId.getAndIncrement());
+//            checkIfId(c);
 
             globalColToJoinKey.put(c, key);
             globalJoinKeyToTableColumn.computeIfAbsent(key, k -> new HashMap<>()).put(c.table(), c.column());
@@ -107,38 +105,10 @@ public class JoinDataset {
         }
         return null;
     }
-    static String normalize(String aliasColumn,
-                            Map<String, String> aliasToTable) {
-
-        String[] parts = aliasColumn.split("\\.");
-
-        String alias = parts[0];
-        String col = parts[1];
-
-        String table = aliasToTable.get(alias);
-        if (table == null) {
-            throw new RuntimeException(
-                    "Unknown alias: " + alias
-            );
+    private void checkIfId(ColumnKey c) {
+        if (!c.column().contains("id") && !c.column().contains("Id")) {
+            System.out.println("Join key without ID: " + c.column());
         }
-        return table + "." + col;
-    }
-
-    static Map<String, String> buildAliasMap(String sql) {
-
-        Map<String, String> map = new HashMap<>();
-
-        Pattern p = Pattern.compile("(\\w+)\\s+(?:as\\s+)?(\\w+)", Pattern.CASE_INSENSITIVE);
-
-        Matcher m = p.matcher(sql.split("where")[0]);
-
-        while (m.find()) {
-            String table = m.group(1);
-            String alias = m.group(2);
-            map.put(alias, table);
-        }
-
-        return map;
     }
 
     private void getTableNames() throws SQLException {

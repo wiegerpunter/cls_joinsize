@@ -1,6 +1,6 @@
 {
-  "queryPath": "/home/wieger/Downloads/imdb_csv/queries/cardinality_queries_eq_only",
-  "duckdbPath": "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb",
+  "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/processed_queries",
+  "duckdbPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/stats.duckdb",
   "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000],
@@ -11,8 +11,8 @@
   "maxNumPredicates": [3],
   "printData": false,
   "numClusters": 2,
-  "num_rows": [3,5],
-  "width": 28,
+  "num_rows": [3],
+  "width": 100,
   "ingest_buffers": [0.01,0.1,0.25],
-  "datasetType": "imdb"
+  "datasetType": "joinSize"
 }

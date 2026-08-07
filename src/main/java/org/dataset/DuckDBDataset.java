@@ -36,24 +36,5 @@ public class DuckDBDataset {
 
         appender.close();
         return conn;
-//        // Prepare insert statement
-//        StringBuilder insertSQL = new StringBuilder("INSERT INTO dataset VALUES (");
-//        for (int i = 0; i < numAttributes; i++) {
-//            if (i > 0) insertSQL.append(", ");
-//            insertSQL.append("?");
-//        }
-//        insertSQL.append(");");
-//
-//        try (PreparedStatement ps = conn.prepareStatement(insertSQL.toString())) {
-//            for (int[] row : dataset) {
-//                for (int i = 0; i < numAttributes; i++) {
-//                    ps.setInt(i + 1, row[i]);
-//                }
-//                ps.addBatch();
-//            }
-//            ps.executeBatch();
-//        }
-//
-//        return conn;
     }
 }

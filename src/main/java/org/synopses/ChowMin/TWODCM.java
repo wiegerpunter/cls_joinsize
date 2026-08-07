@@ -3,16 +3,12 @@ package org.synopses.ChowMin;
 import com.google.common.hash.HashFunction;
 import org.utils.Edge;
 
-import java.util.stream.IntStream;
-
 public class TWODCM {
 //    public int[][][] CM;
     public int[] CMR;
     private final int depth;
     private final int width;
     int attrS; int attrT;
-    HashFunction[] xxS;
-    HashFunction[] xxT;
 
     int[] reusableHashesS;
     int[] reusableHashesT;
@@ -55,13 +51,10 @@ public class TWODCM {
     }
 
     public void add(int e1, int e2) {
-//        computeHashes(xxS, e1, reusableHashesS);
-//        computeHashes(xxT, e2, reusableHashesT);
         computeHashes(e1, reusableHashesS, true);
         computeHashes(e2, reusableHashesT, false);
 
         for (int j = 0; j < depth; j++) {
-//            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
             CMR[idx(j, reusableHashesS[j], reusableHashesT[j])] += 1;
         }
     }
@@ -69,23 +62,16 @@ public class TWODCM {
 
     public void addHashed(int[] hashS, int[] hashT) {
         for (int j = 0; j < depth; j++) {
-//            CM[j][reusableHashesS[j]][reusableHashesT[j]] += 1;
             CMR[idx(j, hashS[j], hashT[j])] += 1;
         }
     }
 
 
     public int query(int e1, int e2) {
-//        computeHashes(xxS, e1, reusableHashesS);
-//        computeHashes(xxT, e2, reusableHashesT);
-
         computeHashes(e1, reusableHashesS, true);
         computeHashes(e2, reusableHashesT, false);
         int minEstimate = Integer.MAX_VALUE;
         for (int i = 0; i < depth; i++) {
-//            if (CM[i][reusableHashesS[i]][reusableHashesT[i]] < minEstimate) {
-//                minEstimate = CM[i][reusableHashesS[i]][reusableHashesT[i]];
-//            }
             if (CMR[idx(i, reusableHashesS[i], reusableHashesT[i])] < minEstimate) {
                 minEstimate = CMR[idx(i, reusableHashesS[i], reusableHashesT[i])];
             }
@@ -288,14 +274,10 @@ public class TWODCM {
 
     int[] getPredIdx(int predicate, int attr) {
         if (attrS == attr) {
-//            computeHashes(xxS, predicate, reusableHashesS);
             computeHashes(predicate, reusableHashesS, true);
-
             return reusableHashesS;
         } else {
             computeHashes(predicate, reusableHashesT, false);
-
-//            computeHashes(xxT, predicate, reusableHashesT);
             return reusableHashesT;
         }
     }
@@ -315,10 +297,6 @@ public class TWODCM {
     }
 
     public int idx(int d, int x, int y) {
-        return d * (width * width) + x * (width) + y;
-    }
-
-    private int idx_copy(int d, int x, int y) {
         return d * (width * width) + x * (width) + y;
     }
 

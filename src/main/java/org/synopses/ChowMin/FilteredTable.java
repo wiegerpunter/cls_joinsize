@@ -1,22 +1,14 @@
 package org.synopses.ChowMin;
 
-import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import org.dataset.SynopsisQuery;
-
-import javax.script.AbstractScriptEngine;
 import java.util.*;
 
 public class FilteredTable {
     final List<SynopsisQuery.ColumnKey> unqColumns;
-    public int numJoinKeysInTable;
-    public List<String> joinKeys;
     Table t;
     SynopsisQuery q;
     ChowMinAllPairs s;
-    // Estimated filtered frequencies indexed by join-key buckets.
-    // For one join key: [w]
-    // For two join keys: [w][w]
     double[] view;
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
@@ -79,5 +71,15 @@ public class FilteredTable {
                 .comparing(SynopsisQuery.ColumnKey::table)
                 .thenComparing(SynopsisQuery.ColumnKey::column));
         return unqColumnList;
+    }
+
+    public boolean isPrimaryKeyJoinKey() {
+        for (SynopsisQuery.ColumnKey c : unqColumns) {
+            if (c.column().equals("Id")) {
+                // PK is join key in this query;
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -266,29 +266,6 @@ public class ChowM2D extends AbstractSynopsis {
         return scheme.get(e).getCodomain(attr, predicate);
     }
 
-    int getCondAttr(int u, int v, Edge edgeParent) {
-        // which of u and v is in edgeParent. It can only be one
-        int condAttr = -1;
-        ArrayList<Integer> edgeAttrs = new ArrayList<>();
-        edgeAttrs.add(edgeParent.getS());
-        edgeAttrs.add(edgeParent.getT());
-        for (Integer edgeAttr : edgeAttrs) {
-            if (edgeAttr == u) {
-                condAttr = u;
-                break;
-            }
-            if (edgeAttr == v) {
-                condAttr = v;
-                break;
-            }
-        }
-        if (condAttr == -1) {
-            throw new RuntimeException("Cannot find condAttr for edge " + edgeParent.getS() + " " + edgeParent.getT());
-        }
-        return condAttr;
-
-    }
-
     public int memoryUsage() {
         int ram = 0;
         for (Edge edge : edges) {

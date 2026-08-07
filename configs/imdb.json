@@ -1,0 +1,18 @@
+{
+  "queryPath": "/home/wieger/Downloads/imdb_csv/queries/cardinality_queries_eq_only",
+  "duckdbPath": "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb",
+  "N": 10000000,
+  "numQueries": 10000,
+  "ramVals":[100000],
+  "numAttributes":[6],
+  "modelType": "ClusteredModel",
+  "dataDistribution": "Corr",
+  "statsData": false,
+  "maxNumPredicates": [3],
+  "printData": false,
+  "numClusters": 2,
+  "num_rows": [3,5],
+  "width": 500,
+  "ingest_buffers": [0.01,0.1,0.25],
+  "datasetType": "joinSize"
+}

@@ -58,7 +58,7 @@ public class Main {
                     List<Edge> chowLiuTree = computeChowLiu(MIs, data[0].length);
                     RunExperiment re = new RunExperiment(config, data, queries, exactAnswer, MIs, chowLiuTree, config.maxNumPredicates[i]);
                 }
-            case "imdb":
+            case "joinSize":
                 DuckDBConnection con =
                         (DuckDBConnection) DriverManager.getConnection(
                                 "jdbc:duckdb:" + config.duckdbPath

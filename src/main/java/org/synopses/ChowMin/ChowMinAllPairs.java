@@ -1,5 +1,8 @@
 package org.synopses.ChowMin;
 
+import net.sf.jsqlparser.expression.DoubleValue;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.schema.Column;
@@ -257,11 +260,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             for (Edge edge : f) {
                 int s = edge.getS();
                 int t = edge.getT();
+                int mine = Math.min(s,t);
+                int maxe = Math.max(s,t);
                 if (s == t) {
                     product_p = sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
 
                 } else {
-                    double jointFreq = sketches[sketch_idx(edge.getS(), edge.getT())].queryCodomainWOLatent(k,s, t);
+                    double jointFreq = sketches[sketch_idx(mine, maxe)].queryCodomainWOLatent(k,mine, maxe);
                     double denominator = sketches[sketch_idx_first(s)].queryMarginalCodomainWOLatent(s, k);
                     product_p *= jointFreq / denominator;
                 }
@@ -322,10 +327,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             for (Edge edge : f) {
                 int s = edge.getS();
                 int t = edge.getT();
+                int mine = Math.min(s,t);
+                int maxe = Math.max(s,t);
                 if (s == t) {
                     product_p = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
                 } else {
-                    double jointFreq = sketches[sketch_idx(s, t)].queryCodomainWOLatentOneRep(j, k[s], k[t]);
+                    double jointFreq = sketches[sketch_idx(mine, maxe)].queryCodomainWOLatentOneRep(j, k[mine], k[maxe]);
                     double denominator = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
                     if (jointFreq > denominator) {
                         throw new RuntimeException("Joint larger than denominator");
@@ -357,13 +364,15 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public double[][] estimateMIs() {
 //        double[] MIs = new HashMap<>();
         double[][] MIs = new double[numAttributes*(numAttributes-1)/2][2+this.depth];
+
+        double[] marg1 = new double[width];
+        double[] marg2 = new double[width];
         for (int a1 = 0; a1 < numAttributes-1; a1++) {
             for (int a2 = a1+1; a2 < numAttributes; a2++) {
                 int sketch_idx = sketch_idx(a1, a2);
                 double[] MIsList = new double[this.depth];
-
                 for (int j = 0; j < depth; j++) {
-                    double mi = estMI(a1, a2, sketch_idx, j);
+                    double mi = estMI(a1, a2, sketch_idx, j, marg1, marg2);
                     MIsList[j] = mi;
                 }
                 Arrays.sort(MIsList);
@@ -374,14 +383,21 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return MIs;
     }
 
-    private double estMI(int a1, int a2, int sketch_idx, int j) {
+    private double estMI(int a1, int a2, int sketch_idx, int j, double[] marg1, double[] marg2) {
+        for (int w = 0; w < width; w++) {
+            marg1[w] = sketches[sketch_idx_first(a1)]
+                    .queryMarginalCodomain(a1, w, j);
+            marg2[w] = sketches[sketch_idx_first(a2)]
+                    .queryMarginalCodomain(a2, w, j);
+        }
         double mi = 0;
         for (int w1 = 0; w1 < this.width; w1++) {
-            double marg1 = this.sketches[sketch_idx_first(a1)].queryMarginalCodomain(a1, w1, j);
             for (int w2 = 0; w2 < this.width; w2++) {
                 double joint = this.sketches[sketch_idx].jointCodomain(w1, w2,j);
-                double marg2 = this.sketches[sketch_idx_first(a2)].queryMarginalCodomain(a2, w2,j);
-                double mi_iter= joint/N * Math.log((joint/N )/ (marg1/N * marg2/N));
+                if (joint == 0) {
+                    continue;
+                }
+                double mi_iter = joint/N * Math.log(joint/ (marg1[w1] * marg2[w2]));
                 if (!Double.isNaN(mi_iter)) {
                     mi += mi_iter;
                 }
@@ -466,7 +482,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 if (subtree.contains(v) && !visited[v]) {
                     visited[v] = true;
                     stack.push(v);
-                    factors.add(new Edge(Math.min(v,u), Math.max(v,u)));
+//                    factors.add(new Edge(Math.min(v,u), Math.max(v,u)));
+                    factors.add(new Edge(u, v));
                 }
             }
         }
@@ -537,7 +554,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (EqualsTo eq : selectionPredicatesPerTable) {
 
             String col = ((Column) eq.getLeftExpression()).getColumnName();
-            String value = ((StringValue) eq.getRightExpression()).getValue();
+            String value = literalToString(eq.getRightExpression());
 
             int attr = getIdCol(col);
             if (attr < 0)
@@ -566,6 +583,19 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 buildFactorization(active, joinAttrRoot, numAttributes, MIs);
 
         return queryFactorsJoinBucket(j, factors, record, bucketPerAttribute,active);
+    }
+
+    private static String literalToString(Expression expr) {
+        if (expr instanceof StringValue sv) {
+            return sv.getValue();
+        }
+        if (expr instanceof LongValue lv) {
+            return Long.toString(lv.getValue());
+        }
+        if (expr instanceof DoubleValue dv) {
+            return Double.toString(dv.getValue());
+        }
+        return expr.toString();
     }
 
     private double queryFactorsJoinBucket(int j,

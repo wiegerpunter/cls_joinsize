@@ -19,7 +19,6 @@ public class SynopsisQuery {
     public Set<String> globalJoinKeysInQuerySet;
     public HashMap<String, String> aliasMap;
     public int numJoinKeys;
-    int[] globalToLocal;
     public HashMap<String, Integer> jkToBucket;
 
     public void setGlobalJoinKeysInQuery(Map<ColumnKey, String> globalColToJoinKey) {
@@ -89,7 +88,6 @@ public class SynopsisQuery {
         }
 
     }
-
 
     private void parseTables(PlainSelect select) {
         tables = new ArrayList<>();
