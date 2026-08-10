@@ -60,19 +60,25 @@ public class CMJoin {
         }
         return time;
     }
+    public record QueryEst(double estimate, Map<String, FilteredTable> map) {
 
-    public double query(SynopsisQuery synQuery) {
+    }
+
+    public QueryEst query(SynopsisQuery synQuery) {
         // 0. for each repetition in [d]
         // 1. select tables/chowmins for query
         // 2. apply predicates selecting for the eq join key something that it has to multiply with
         // 3. join size is estimated by inference procedure over the chowmin hash codomains per eq join key and multiplying with the local predicate tensors.
         double[] estimates = new double[depth];
+        Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
             estimates[j] = estimateJoinSize(synQuery, filtered, width);
+            estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
-        return estimates[0];
+        Map<String, FilteredTable> filteredEstimate = estToFilteredMap.get(estimates[estimates.length/2]);
+        return new QueryEst(estimates[estimates.length/2], filteredEstimate);
     }
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
@@ -94,22 +100,94 @@ public class CMJoin {
             tableBuckets[t] = new int[ft.unqColumns.size()];
             t++;
         }
+        double[] pkRatios = new double[numJoinKeys];
+
+        int[] fkNums = new int[numJoinKeys];
         for (int idx = 0; idx < totalBuckets; idx++) {
             int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
             double product = 1;
+            double[] tableCounts = new double[filtered.size()];
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
                 for (int i = 0; i < ft.unqColumns.size(); i++) {
-                    tableBuckets[tloop][i] = bucketAssignment[query.jkToBucket.get(jd.globalColToJoinKey.get(ft.unqColumns.get(i)))];
+                    String globalJK = jd.globalColToJoinKey.get(ft.unqColumns.get(i));
+                    int jk = query.jkToBucket.get(globalJK);
+                    tableBuckets[tloop][i] = bucketAssignment[jk];
                 }
                 int viewIdx = getIdx(tableBuckets[tloop], w);
                 double count = ft.view[viewIdx];
+                tableCounts[tloop] = count;
+//                if (ft.isPrimaryKeyJoinKey()) {
+//                    pkRatios[jk]  = 1/count;
+//                    count = count > 0 ? 1 : 0;
+//                } else {
+//
+//                }
+//                product *= count;
+                tloop++;
+            }
+            double[] pkCount =
+                    new double[numJoinKeys];
+
+            Arrays.fill(pkCount, -1.0);
+
+            tloop = 0;
+
+            for (FilteredTable ft : filtered.values()) {
+
                 if (ft.isPrimaryKeyJoinKey()) {
-                    count = count > 0 ? 1 : 0;
+                    String globalJK =
+                            jd.globalColToJoinKey.get(
+                                    ft.unqColumns.get(0));
+
+                    int jk =
+                            query.jkToBucket.get(globalJK);
+
+                    pkCount[jk] =
+                            tableCounts[tloop];
                 }
+
+                tloop++;
+            }
+
+            tloop = 0;
+
+            for (FilteredTable ft : filtered.values()) {
+
+                double count = tableCounts[tloop];
+
+                if (ft.isPrimaryKeyJoinKey()) {
+                    count = count > 0.0 ? 1.0 : 0.0;
+
+                } else {
+
+                    /*
+                     * If this table is an FK for a PK/FK join,
+                     * divide by the number of PK values in the
+                     * corresponding PK bucket.
+                     */
+                    for (int i = 0;
+                         i < ft.unqColumns.size();
+                         i++) {
+
+                        String globalJK =
+                                jd.globalColToJoinKey.get(
+                                        ft.unqColumns.get(i));
+
+                        int jk =
+                                query.jkToBucket.get(globalJK);
+
+                        if (pkCount[jk] > 0.0) {
+
+                            count /= pkCount[jk];
+                        }
+                    }
+                }
+
                 product *= count;
                 tloop++;
             }
+
             estimate += product;
         }
         return estimate;

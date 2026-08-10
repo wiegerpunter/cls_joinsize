@@ -5,10 +5,11 @@ import org.dataset.SynopsisQuery;
 import java.util.*;
 
 public class FilteredTable {
-    final List<SynopsisQuery.ColumnKey> unqColumns;
-    Table t;
+    public final List<SynopsisQuery.ColumnKey> unqColumns;
+    public Table t;
     SynopsisQuery q;
     ChowMinAllPairs s;
+    public double sumView =0;
     double[] view;
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
@@ -18,7 +19,9 @@ public class FilteredTable {
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
         int total = (int) Math.pow(s.getw(), k);
-
+        if (t.getAlias().getName().equals("c")) {
+            System.out.println("inspectc");
+        }
         view = new double[total];
 
         for (int idx = 0; idx < total; idx++) {
@@ -27,11 +30,16 @@ public class FilteredTable {
             for (int i = 0; i < unqColumns.size();i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
             }
-            view[idx] = s.queryWithJoinB(
+            double val =  s.queryWithJoinB(
                     j,
                     query.getSelectionPredicatesPerTable(t),
                     this.unqColumns,
                     bucketPerAttribute);
+            view[idx] = val;
+            sumView +=val;
+        }
+        if (sumView != s.getN()) {
+            System.out.println("Inspect");
         }
     }
     public static int getIdx(int[] buckets, int w) {
@@ -70,6 +78,7 @@ public class FilteredTable {
         unqColumnList.sort(Comparator
                 .comparing(SynopsisQuery.ColumnKey::table)
                 .thenComparing(SynopsisQuery.ColumnKey::column));
+        //TODO: verify with 0
         return unqColumnList;
     }
 
