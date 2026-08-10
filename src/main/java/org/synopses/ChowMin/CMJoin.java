@@ -96,7 +96,7 @@ public class CMJoin {
         }
         for (int idx = 0; idx < totalBuckets; idx++) {
             int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
-            double product = 2^27;
+            double product = 1;
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
                 for (int i = 0; i < ft.unqColumns.size(); i++) {
