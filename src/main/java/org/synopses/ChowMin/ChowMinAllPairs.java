@@ -314,9 +314,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // check ig all margs are same;
         return true;
     }
-    private double pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f) {
+    private double pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean isPrimaryKeyTable) {
         double sum = 0;
         int[] k = new int[numAttributes];
+        double pkMarginal;
         while (true) {
             for (int i = 0; i < numDimensions; i++) {
                 AttributeDimensionOneRep dim = attributeDimensionsOneRep.get(i);
@@ -358,7 +359,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 break; // all combinations exhausted
             }
         }
-        return sum;
+        if (isPrimaryKeyTable) { // pass on ratio of PK table.
+            pkMarginal = sketches[sketch_idx_first(0)].marginalOneRep(j, 0, k[0]);
+            return sum /pkMarginal;
+        } else {
+            return sum;
+        }
     }
 
     public double[][] estimateMIs() {
@@ -541,8 +547,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
     }
 
-    public double queryWithJoinB(int j, List<EqualsTo> selectionPredicatesPerTable, List<SynopsisQuery.ColumnKey> unqColumns,
-                                 HashMap<Integer,Integer> bucketPerAttribute) {
+    public record factorization(String[] record, List<Edge> factors, HashSet<Integer> active) {
+
+    }
+    public factorization factorize(List<EqualsTo> selectionPredicatesPerTable, List<SynopsisQuery.ColumnKey> unqColumns) {
         // for repetition j, apply selectionpredicates and return value for unqColumn at codomain val b
         // value for every attribute.
         // null = latent / not queried
@@ -581,8 +589,14 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
         List<Edge> factors =
                 buildFactorization(active, joinAttrRoot, numAttributes, MIs);
+        return new factorization(record, factors, active);
+    }
 
-        return queryFactorsJoinBucket(j, factors, record, bucketPerAttribute,active);
+    public double queryWithJoinB(int j, factorization f,
+                                 HashMap<Integer,Integer> bucketPerAttribute, boolean isPrimaryKeyTable) {
+
+
+        return queryFactorsJoinBucket(j, f.factors, f.record, bucketPerAttribute, f.active, isPrimaryKeyTable);
     }
 
     private static String literalToString(Expression expr) {
@@ -602,13 +616,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                                           List<Edge> factors,
                                           String[] record,
                                           HashMap<Integer, Integer> bucketPerAttribute,
-                                          HashSet<Integer> active) {
+                                          HashSet<Integer> active, boolean isPrimaryKeyTable) {
         constructDimensionsOneRep(record, bucketPerAttribute, j, active);
 
         int dims = attributeDimensionsOneRep.size();
         int[] indices = new int[dims];
 
-        return pathQueryOneRep(j, dims, indices, factors);
+        return pathQueryOneRep(j, dims, indices, factors, isPrimaryKeyTable);
     }
 
     private void constructDimensionsOneRep(String[] record,

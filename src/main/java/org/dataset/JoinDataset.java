@@ -40,7 +40,7 @@ public class JoinDataset {
                  ResultSet rs = stmt.executeQuery(q.query_text)) {
 
                 while (rs.next()) {
-                    q.query_result = rs.getInt(1);
+                    q.query_result = rs.getDouble(1);
                 }
             }
         }
@@ -55,8 +55,7 @@ public class JoinDataset {
         ArrayList<Query> queries = new ArrayList<>();
         for (File f : files){
             BufferedReader br = new BufferedReader(new FileReader(f.getAbsoluteFile()));
-            if (f.getName().contains("fkindexes") || f.getName().contains("schema") || f.getName().contains("15")) {
-            } else {
+            if (!f.getName().contains("fkindexes") && !f.getName().contains("schema") && !f.getName().contains("15")) {
                 Query q = new Query(f.getName(), br.readLine());
                 if (q.syn_query!=null) {
                     queries.add(q);

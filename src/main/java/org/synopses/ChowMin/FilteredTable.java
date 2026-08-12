@@ -1,5 +1,7 @@
 package org.synopses.ChowMin;
 
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import org.dataset.SynopsisQuery;
 import java.util.*;
@@ -11,6 +13,9 @@ public class FilteredTable {
     ChowMinAllPairs s;
     public double sumView =0;
     double[] view;
+    public boolean isPrimaryKeyTable = false;
+    public boolean pkHasPred = false;
+
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
         this.q = query;
@@ -19,10 +24,12 @@ public class FilteredTable {
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
         int total = (int) Math.pow(s.getw(), k);
-        if (t.getAlias().getName().equals("c")) {
-            System.out.println("inspectc");
-        }
+        isPrimaryKeyTable = isPrimaryKeyJoinKey();
+        pkHasPred = pkHasPred();
+
         view = new double[total];
+
+        ChowMinAllPairs.factorization f = s.factorize(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
         for (int idx = 0; idx < total; idx++) {
             int[] buckets = decodeIdx(idx, k, s.getw());
@@ -30,17 +37,22 @@ public class FilteredTable {
             for (int i = 0; i < unqColumns.size();i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
             }
-            double val =  s.queryWithJoinB(
+            double raw =  s.queryWithJoinB(
                     j,
-                    query.getSelectionPredicatesPerTable(t),
-                    this.unqColumns,
-                    bucketPerAttribute);
-            view[idx] = val;
-            sumView +=val;
+                    f,
+                    bucketPerAttribute, pkHasPred);
+            if (!isPrimaryKeyTable) {
+                raw = correctFKBucket(raw, j, bucketPerAttribute);
+            }
+
+            view[idx] = raw;
+            sumView +=raw;
         }
-        if (sumView != s.getN()) {
-            System.out.println("Inspect");
-        }
+    }
+
+    private double correctFKBucket(double raw, int j, Map<Integer, Integer> bucketPerAttribute) {
+        return raw; // min of N/w^2 , min val at cells
+
     }
     public static int getIdx(int[] buckets, int w) {
         int idx = 0;
@@ -84,9 +96,24 @@ public class FilteredTable {
 
     public boolean isPrimaryKeyJoinKey() {
         for (SynopsisQuery.ColumnKey c : unqColumns) {
-            if (c.column().equals("Id")) {
+            if (c.column().equals("Id") || c.column().equals("id")) {
                 // PK is join key in this query;
                 return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean pkHasPred() {
+        for (SynopsisQuery.ColumnKey c : unqColumns) {
+            if (c.column().equals("Id") || c.column().equals("id")) {
+                // PK is join key in this query;
+                for (EqualsTo eq : q.selections) {
+                    if (SynopsisQuery.ColumnKey.of((Column) eq.getLeftExpression(), q.aliasMap).table().equals(c.table())) {
+                        return true;
+                    }
+                }
+                return false;
             }
         }
         return false;

@@ -100,9 +100,6 @@ public class CMJoin {
             tableBuckets[t] = new int[ft.unqColumns.size()];
             t++;
         }
-        double[] pkRatios = new double[numJoinKeys];
-
-        int[] fkNums = new int[numJoinKeys];
         for (int idx = 0; idx < totalBuckets; idx++) {
             int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
             double product = 1;
@@ -135,7 +132,7 @@ public class CMJoin {
 
             for (FilteredTable ft : filtered.values()) {
 
-                if (ft.isPrimaryKeyJoinKey()) {
+                if (ft.isPrimaryKeyTable) {
                     String globalJK =
                             jd.globalColToJoinKey.get(
                                     ft.unqColumns.get(0));
@@ -143,8 +140,7 @@ public class CMJoin {
                     int jk =
                             query.jkToBucket.get(globalJK);
 
-                    pkCount[jk] =
-                            tableCounts[tloop];
+                    pkCount[jk] = Math.min(tableCounts[tloop], 1.0);
                 }
 
                 tloop++;
@@ -156,7 +152,7 @@ public class CMJoin {
 
                 double count = tableCounts[tloop];
 
-                if (ft.isPrimaryKeyJoinKey()) {
+                if (ft.isPrimaryKeyTable) {
                     count = count > 0.0 ? 1.0 : 0.0;
 
                 } else {
@@ -179,7 +175,8 @@ public class CMJoin {
 
                         if (pkCount[jk] > 0.0) {
 
-                            count /= pkCount[jk];
+                            count *= pkCount[jk];
+
                         }
                     }
                 }

@@ -1,8 +1,10 @@
 package org.experiments;
 
 import com.opencsv.CSVWriter;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import org.dataset.JoinDataset;
 import org.dataset.Query;
+import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
 import org.synopses.ChowMin.CMJoin;
 import org.synopses.ChowMin.FilteredTable;
@@ -14,6 +16,7 @@ import java.io.FileWriter;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 public class RunJoinExperiment {
@@ -65,6 +68,8 @@ public class RunJoinExperiment {
         double[][] tableNs = new double[numQueries][];
         int[][] tableJoinKeys = new int[numQueries][];
         String[][] tableNames = new String[numQueries][];
+        List<SynopsisQuery.JoinPredicate>[] joins = new List[numQueries];
+        List<EqualsTo>[] selections = new List[numQueries];
         for (int i = 0; i < numQueries; i++) {
             Query q = d.getQueries()[i];
             if (q.getName().equals("query_140_252.sql")) {
@@ -90,15 +95,18 @@ public class RunJoinExperiment {
             errors[i] = error;
             exact[i] = q.getResult();
             queryName[i] = q.getName();
+            joins[i] = q.syn_query.joins;
+            selections[i] = q.syn_query.selections;
         }
 
         writeResults(cmj.setting, queryName, estimates, exact, errors, cmj.getDepth(), cmj.getWidth(), cmj.getMemory(),
-                cmj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins);
+                cmj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins, selections);
     }
 
     private void writeResults(String setting,String[] queryName, double[] estimates, double[] exact,
                               double[] errors, int d, int w, int ram, int datasetMemory,
-                              long ingestTime, double[][] tableNs, String[][] tableNames, int[][] tableJoinKeys, int[] numJoins) throws Exception {
+                              long ingestTime, double[][] tableNs, String[][] tableNames, int[][] tableJoinKeys, int[] numTables,
+                              List[] joins, List[] selections) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -106,7 +114,7 @@ public class RunJoinExperiment {
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
             String[] header = new String[]{"queryID","setting","memUsage","estimate","exact","error","absError","relError",
-                    "d","w","datasetMemory","ingestTime", "bias","tableNs","tableNames","tableJoinKeys","numJoins"};
+                    "d","w","datasetMemory","ingestTime", "bias","tableNs","tableNames","tableJoinKeys","numTables","joins","selections"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
@@ -115,7 +123,7 @@ public class RunJoinExperiment {
                 bias*= tableNs[i][j] / (Math.pow(w, tableJoinKeys[i][j]));
             }
 
-            String[] result = new String[17];
+            String[] result = new String[19];
             result[0] = queryName[i];
             result[1] = setting;
             result[2] = String.valueOf(ram);
@@ -132,7 +140,9 @@ public class RunJoinExperiment {
             result[13] = Arrays.toString(tableNs[i]);
             result[14] = Arrays.toString(tableNames[i]);
             result[15] = Arrays.toString(tableJoinKeys[i]);
-            result[16] = String.valueOf(numJoins[i]);
+            result[16] = String.valueOf(numTables[i]);
+            result[17] = String.valueOf(joins[i]);
+            result[18] = String.valueOf(selections[i]);
 
             writer.writeNext(result);
         }

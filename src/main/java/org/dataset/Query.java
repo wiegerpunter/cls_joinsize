@@ -5,7 +5,7 @@ import net.sf.jsqlparser.JSQLParserException;
 public class Query {
     String query_name;
     final String query_text;
-    int query_result;
+    double query_result;
     public SynopsisQuery syn_query;
     Query(String query_name, String query_text) throws JSQLParserException {
         this.query_name = query_name;
@@ -19,7 +19,7 @@ public class Query {
         this.syn_query = new SynopsisQuery(query_text);
     }
 
-    public int getResult() {
+    public double getResult() {
         return query_result;
     }
 
