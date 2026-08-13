@@ -15,6 +15,7 @@ public class FilteredTable {
     double[][] view;
     public boolean isPrimaryKeyTable = false;
     public boolean pkHasPred = false;
+    double[] pkView;
 
     public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
         this.t = t;
@@ -28,6 +29,9 @@ public class FilteredTable {
         pkHasPred = pkHasPred();
 
         view = new double[total][];
+        if (isPrimaryKeyTable) {
+            pkView = new double[s.getw()];
+        }
 
         ChowMinAllPairs.factorization f = s.factorize(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
@@ -41,6 +45,26 @@ public class FilteredTable {
             view[idx] = raw;
             sumView +=raw[0];
         }
+
+        if (isPrimaryKeyTable) {
+            for (int idx = 0; idx < s.getw(); idx++) {
+                int[] buckets = decodeIdx(idx, 1, s.getw());
+                if (!s.columns[0].equals("Id") && !s.columns[0].equals("id")) {
+                    throw new RuntimeException("Columns[0] is " + s.columns[0]);
+                }
+                int raw =  s.sketches[s.sketch_idx_first(0)].marginalOneRep(j, 0, buckets[0]);
+                pkView[idx] = raw;
+            }
+        }
+    }
+
+    private String getPK(List<SynopsisQuery.ColumnKey> unqColumns) {
+        for (SynopsisQuery.ColumnKey c : unqColumns) {
+            if (c.column().equals("Id") || c.column().equals("id")) {
+                return c.column();
+            }
+        }
+        throw new RuntimeException("No PK column found in " + unqColumns.toString());
     }
     public static int getIdx(int[] buckets, int w) {
         int idx = 0;

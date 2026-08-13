@@ -124,22 +124,24 @@ public class CMJoin {
             }
             double[][] pkCount =
                     new double[numJoinKeys][2];
-
-            Arrays.fill(pkCount, new double[]{-1,-1});
+            for (int i = 0; i < pkCount.length; i++) {
+                pkCount[i] = new double[]{-1,-1};
+            }
 
             tloop = 0;
 
             for (FilteredTable ft : filtered.values()) {
 
                 if (ft.isPrimaryKeyTable) {
+                    SynopsisQuery.ColumnKey id = getPK(ft.unqColumns);
+                    int idIdx = getPKIdx(id, ft.unqColumns);
                     String globalJK =
-                            jd.globalColToJoinKey.get(
-                                    ft.unqColumns.get(0));
+                            jd.globalColToJoinKey.get(id);
 
                     int jk =
                             query.jkToBucket.get(globalJK);
 
-                    pkCount[jk][0] = tableCounts[tloop][0];
+                    pkCount[jk][0] = getMarginal(ft, idIdx, bucketAssignment[jk], w);//tableCounts[tloop][0];
                     if (ft.pkHasPred) {
                         if (tableCounts[tloop][1] > 1.0) {
                             throw new RuntimeException("help");
@@ -160,8 +162,25 @@ public class CMJoin {
                 double count = tableCounts[tloop][0];
 
                 if (ft.isPrimaryKeyTable) {
-                    count = count;// > 0.0 ? 1.0 : 0.0;
-//                    count = Math.min(count, 1.0);
+                    SynopsisQuery.ColumnKey pk = getPK(ft.unqColumns);
+                    for (int i = 0; i < ft.unqColumns.size(); i++) {
+                        if (ft.unqColumns.get(i).equals(pk)) {
+                            count = count;
+                        } else {
+                            String globalJK =
+                                    jd.globalColToJoinKey.get(
+                                            ft.unqColumns.get(i));
+
+                            int jk =
+                                    query.jkToBucket.get(globalJK);
+
+                            if (pkCount[jk][1] > 0.0) {
+                                count *= pkCount[jk][1];
+                            }
+                            count = count / Math.max(1.0, pkCount[jk][0]);//Math.pow(count, 0.8);//1.0 / fkCountPerJK[jk]);
+
+                        }
+                    }
 
                 } else {
 
@@ -195,6 +214,49 @@ public class CMJoin {
             estimate += product;
         }
         return estimate;
+    }
+
+    private int getPKIdx(SynopsisQuery.ColumnKey id, List<SynopsisQuery.ColumnKey> unqColumns) {
+        for (int i = 0; i < unqColumns.size(); i++) {
+            if (unqColumns.get(i).equals(id)) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Id of primary key not found");
+    }
+
+    private double getMarginal(
+            FilteredTable ft,
+            int columnIndex,
+            int bucket,
+            int w) {
+
+        return ft.pkView[bucket];
+//        int k = ft.unqColumns.size();
+//
+//        double sum = 0.0;
+//
+//        for (int idx = 0; idx < Math.pow(w, k); idx++) {
+//            int[] assignment = decodeIdx(idx, k, w);
+//
+//            if (assignment[columnIndex] != bucket) {
+//                continue;
+//            }
+//
+//            int viewIdx = getIdx(assignment, w);
+//            sum += ft.view[viewIdx][0];
+//        }
+//
+//        return sum;
+    }
+
+    private SynopsisQuery.ColumnKey getPK(List<SynopsisQuery.ColumnKey> unqColumns) {
+        for (SynopsisQuery.ColumnKey c : unqColumns) {
+            if (c.column().equals("Id") || c.column().equals("id")) {
+                return c;
+            }
+        }
+        throw new RuntimeException("No PK column found in " + unqColumns.toString());
     }
 
     public int getDepth() {

@@ -29,7 +29,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final int[][] hashes;
     private double[][] MIs;
     final private String table;
-    final private String[] columns;
+    final public String[] columns;
     private int numColumns=0;
 
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
@@ -84,7 +84,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
 
 
-    private int sketch_idx_first(int attr) {
+    public int sketch_idx_first(int attr) {
         if (attr<0 || attr >= numAttributes) {
             throw new IllegalArgumentException("Out of range");
         }
