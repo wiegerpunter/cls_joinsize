@@ -102,8 +102,7 @@ public class CMJoin {
         }
         for (int idx = 0; idx < totalBuckets; idx++) {
             int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
-            double product = 1;
-            double[] tableCounts = new double[filtered.size()];
+            double[][] tableCounts = new double[filtered.size()][];
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
                 for (int i = 0; i < ft.unqColumns.size(); i++) {
@@ -112,7 +111,7 @@ public class CMJoin {
                     tableBuckets[tloop][i] = bucketAssignment[jk];
                 }
                 int viewIdx = getIdx(tableBuckets[tloop], w);
-                double count = ft.view[viewIdx];
+                double[] count = ft.view[viewIdx];
                 tableCounts[tloop] = count;
 //                if (ft.isPrimaryKeyJoinKey()) {
 //                    pkRatios[jk]  = 1/count;
@@ -123,10 +122,10 @@ public class CMJoin {
 //                product *= count;
                 tloop++;
             }
-            double[] pkCount =
-                    new double[numJoinKeys];
+            double[][] pkCount =
+                    new double[numJoinKeys][2];
 
-            Arrays.fill(pkCount, -1.0);
+            Arrays.fill(pkCount, new double[]{-1,-1});
 
             tloop = 0;
 
@@ -140,20 +139,29 @@ public class CMJoin {
                     int jk =
                             query.jkToBucket.get(globalJK);
 
-                    pkCount[jk] = Math.min(tableCounts[tloop], 1.0);
+                    pkCount[jk][0] = tableCounts[tloop][0];
+                    if (ft.pkHasPred) {
+                        if (tableCounts[tloop][1] > 1.0) {
+                            throw new RuntimeException("help");
+                        }
+                        pkCount[jk][1] = Math.min(tableCounts[tloop][1], 1.0);
+                    } else {
+                        pkCount[jk][1] = 0.0;
+                    }
                 }
 
                 tloop++;
             }
 
             tloop = 0;
-
+            double product = 1.0;
             for (FilteredTable ft : filtered.values()) {
 
-                double count = tableCounts[tloop];
+                double count = tableCounts[tloop][0];
 
                 if (ft.isPrimaryKeyTable) {
-                    count = count > 0.0 ? 1.0 : 0.0;
+                    count = count;// > 0.0 ? 1.0 : 0.0;
+//                    count = Math.min(count, 1.0);
 
                 } else {
 
@@ -173,11 +181,10 @@ public class CMJoin {
                         int jk =
                                 query.jkToBucket.get(globalJK);
 
-                        if (pkCount[jk] > 0.0) {
-
-                            count *= pkCount[jk];
-
+                        if (pkCount[jk][1] > 0.0) {
+                            count *= pkCount[jk][1];
                         }
+                        count = count / Math.max(1.0, pkCount[jk][0]);//Math.pow(count, 0.8);//1.0 / fkCountPerJK[jk]);
                     }
                 }
 

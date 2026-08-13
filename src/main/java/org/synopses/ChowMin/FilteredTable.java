@@ -12,7 +12,7 @@ public class FilteredTable {
     SynopsisQuery q;
     ChowMinAllPairs s;
     public double sumView =0;
-    double[] view;
+    double[][] view;
     public boolean isPrimaryKeyTable = false;
     public boolean pkHasPred = false;
 
@@ -27,7 +27,7 @@ public class FilteredTable {
         isPrimaryKeyTable = isPrimaryKeyJoinKey();
         pkHasPred = pkHasPred();
 
-        view = new double[total];
+        view = new double[total][];
 
         ChowMinAllPairs.factorization f = s.factorize(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
@@ -37,22 +37,10 @@ public class FilteredTable {
             for (int i = 0; i < unqColumns.size();i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
             }
-            double raw =  s.queryWithJoinB(
-                    j,
-                    f,
-                    bucketPerAttribute, pkHasPred);
-            if (!isPrimaryKeyTable) {
-                raw = correctFKBucket(raw, j, bucketPerAttribute);
-            }
-
+            double[] raw =  s.queryFactorsJoinBucket(j, f.factors(), f.record(), bucketPerAttribute, f.active(), pkHasPred);
             view[idx] = raw;
-            sumView +=raw;
+            sumView +=raw[0];
         }
-    }
-
-    private double correctFKBucket(double raw, int j, Map<Integer, Integer> bucketPerAttribute) {
-        return raw; // min of N/w^2 , min val at cells
-
     }
     public static int getIdx(int[] buckets, int w) {
         int idx = 0;

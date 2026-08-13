@@ -314,7 +314,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // check ig all margs are same;
         return true;
     }
-    private double pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean isPrimaryKeyTable) {
+    private double[] pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean isPrimaryKeyTable) {
         double sum = 0;
         int[] k = new int[numAttributes];
         double pkMarginal;
@@ -361,9 +361,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
         if (isPrimaryKeyTable) { // pass on ratio of PK table.
             pkMarginal = sketches[sketch_idx_first(0)].marginalOneRep(j, 0, k[0]);
-            return sum /pkMarginal;
+            double[] res = new double[2];
+            res[0] = sum;
+            res[1] = sum / Math.max(1.0, pkMarginal);
+            return res;
         } else {
-            return sum;
+            return new double[]{sum};
         }
     }
 
@@ -592,7 +595,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return new factorization(record, factors, active);
     }
 
-    public double queryWithJoinB(int j, factorization f,
+    public double[] queryWithJoinB(int j, factorization f,
                                  HashMap<Integer,Integer> bucketPerAttribute, boolean isPrimaryKeyTable) {
 
 
@@ -612,7 +615,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return expr.toString();
     }
 
-    private double queryFactorsJoinBucket(int j,
+    public double[] queryFactorsJoinBucket(int j,
                                           List<Edge> factors,
                                           String[] record,
                                           HashMap<Integer, Integer> bucketPerAttribute,
