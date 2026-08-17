@@ -360,6 +360,9 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
         }
         if (isPrimaryKeyTable) { // pass on ratio of PK table.
+            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
+                throw new RuntimeException("Columns[0] is " + columns[0]);
+            }
             pkMarginal = sketches[sketch_idx_first(0)].marginalOneRep(j, 0, k[0]);
             double[] res = new double[2];
             res[0] = sum;
