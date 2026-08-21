@@ -11,13 +11,9 @@ import org.synopses.ChowMin.FilteredTable;
 import org.synopses.RS.RSJoin;
 import org.utils.Config;
 
-import java.io.File;
-import java.io.FileWriter;
+import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class RunJoinExperiment {
     Config config;
@@ -39,12 +35,52 @@ public class RunJoinExperiment {
 //            queryRS(rsj);
 //        }
 
+        HashMap<String, HashMap<String, List<String>>> hhValuesMaps = readhhValuesMaps(config.hhValuesMapPath);
         for (int j = 0; j < config.num_rows.length; j++) {
             CMJoin cmj = new CMJoin();
-            long ingestTime = cmj.initialize(d, d.attrMap, 0, config.num_rows[j], config.width, con);
+            long ingestTime = cmj.initialize(d, d.attrMap, 0, config.num_rows[j], config.width, config.sepHHs,hhValuesMaps, con);
             queryCM(cmj, ingestTime);
         }
 
+    }
+
+    private HashMap<String, HashMap<String,List<String>>> readhhValuesMaps(String hhValuesMapPath) {
+
+        HashMap<String, HashMap<String,List<String>>> hhValuesMaps = new HashMap<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(hhValuesMapPath))) {
+
+            String line = br.readLine(); // header
+
+            while ((line = br.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split(",", -1);
+
+                if (parts.length < 4) {
+                    continue;
+                }
+
+                String table = parts[0].trim();
+                String column = parts[1].trim();
+                String value = parts[2].trim();
+                String count = parts[3].trim();
+
+                hhValuesMaps
+                        .computeIfAbsent(table,
+                                k -> new HashMap<>()).computeIfAbsent(column,
+                                k->new ArrayList<String>()).add(value);
+
+
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read HH file: " + hhValuesMapPath, e);
+        }
+
+        return hhValuesMaps;
     }
 
     private void queryRS(RSJoin rsj) {

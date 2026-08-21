@@ -22,6 +22,9 @@ public class Config {
     public int[] num_rows;
     public double[] ingest_buffers;
     public int width;
+    public String hhValuesMapPath;
+    public int K;
+    public boolean sepHHs;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

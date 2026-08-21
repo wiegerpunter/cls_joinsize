@@ -26,14 +26,14 @@ public class CMJoin {
         attrMap = new HashMap<>();
     }
 
-    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, DuckDBConnection con) {
+    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, boolean sepHHs, HashMap<String, HashMap<String, List<String>>> hhValuesMaps, DuckDBConnection con) {
         this.depth = depth;
         this.width = width;
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
         long start = System.currentTimeMillis();
         for (String t : jd.tableNames) {
-            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram);
+            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram, sepHHs, hhValuesMaps.get(t));
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();

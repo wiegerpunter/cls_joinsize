@@ -14,6 +14,7 @@ import org.utils.Edge;
 import java.util.*;
 
 import static org.ChowLiu.chowLiuWithPredicates;
+import static org.synopses.ChowMin.TWODCM.hash;
 import static org.synopses.ChowMin.TWODCM.mix;
 
 
@@ -30,18 +31,27 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private double[][] MIs;
     final private String table;
     final public String[] columns;
-    private int numColumns=0;
-
+    final public List<String> joinColumns;
+    final private boolean[] isJoinKey;
+    private final HashMap<String,List<HeavyHitter>> heavyHitters = new HashMap<>();
+    private final HashMap<String, List<String>> hhValues;
+    private final boolean sepHHs;
+    private final Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey;
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
-                           int numAttributes, int depth, int width, int ram) {
+                           int numAttributes, int depth, int width, int ram, boolean sepHHs, HashMap<String, List<String>> hhValues) {
         this.table = table;
         this.columns = columns;
-        numColumns = columns.length;
         this.ram = ram;
         this.numAttributes = numAttributes;
         int[] params = getParams(ram, numAttributes, depth, width);
         this.depth = params[0];
         this.width = params[1];
+        this.sepHHs = sepHHs;
+        this.hhValues = hhValues;
+        this.globalColToJoinKey = globalColToJoinKey;
+
+        isJoinKey = new boolean[numAttributes];
+        this.joinColumns = getJoinColumns();
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
@@ -59,10 +69,23 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         hashes = new int[numAttributes][this.depth];
     }
 
+    private List<String> getJoinColumns() {
+        ArrayList<String> joinKeys = new ArrayList<>();
+        for (int colIdx  = 0; colIdx < columns.length; colIdx++) {
+            String column = columns[colIdx];
+            SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, column);
+            if (globalColToJoinKey.containsKey(c)) {
+                joinKeys.add(column);
+                isJoinKey[colIdx] = true;
+            }
+        }
+        return joinKeys;
+    }
+
     private int getAttrSpecHashCode(int colidx, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey) {
         SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, columns[colidx]);
         int attrSpecSeed;
-        if (globalColToJoinKey.containsKey(c)) {
+        if (isJoinKey[colidx] && globalColToJoinKey.containsKey(c)) {
             attrSpecSeed = globalColToJoinKey.get(c).hashCode();
         } else {
             attrSpecSeed = columns[colidx].hashCode();
@@ -118,10 +141,35 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int v = record[att];
             computeHashes(v, h, s);
         }
-        addToSketch();
+        addToSketch(null);
+    }
+
+    static class HeavyHitter{
+        String value;
+        int[] hashes;
+        double count = 0;
+        public HeavyHitter(String value,
+                           int[] hashes,
+                           double count) {
+            this.value = value;
+            this.hashes = hashes;
+            this.count = count;
+        }
+        public void incrCount() {
+            count+=1;
+        }
+
     }
 
     public void addStringArr(String[] record) {
+        if (sepHHs)
+            addStringArrSepHHs(record);
+        else
+            addStringArrNotSepHHs(record);
+
+    }
+
+    public void addStringArrNotSepHHs(String[] record) {
         N += 1;
         for (int att = 0; att < numAttributes; att++) {
             int[] h = hashes[att];
@@ -129,12 +177,62 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             String v = record[att];
             computeHashes(v, h, s);
         }
-        addToSketch();
+        addToSketch(null);
     }
 
-    private void addToSketch() {
+    public void addStringArrSepHHs(String[] record) {
+        N += 1;
+        boolean[] isHeavy = new boolean[numAttributes];
+
+        for (int att = 0; att < numAttributes; att++) {
+            int[] h = hashes[att];
+            int[] s = seeds[att];
+            String v = record[att];
+            computeHashes(v, h, s);
+            if (hhValues==null) {
+                continue;
+            }
+            if (!isJoinKey[att]) {
+                continue;
+            }
+            List<String> hhs = hhValues.getOrDefault(columns[att],null);
+            if (hhs==null) {
+                continue;
+            }
+            for (String hh: hhs) {
+                if (hh.equals(v)) {
+                    int[] hashesAtt = hashes[att].clone();
+                    SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, columns[att]);
+                    heavyHitters
+                            .computeIfAbsent(globalColToJoinKey.get(c), k -> new ArrayList<HeavyHitter>());
+
+                    List<HeavyHitter> hhList = heavyHitters.get(globalColToJoinKey.get(c));
+                    boolean hhExistsalready=false;
+                    for (HeavyHitter hhObject : hhList) {
+                        if (hhObject.value.equals(v)) {
+                            hhObject.incrCount();
+                            hhExistsalready=true;
+                            break;
+                        }
+                    }
+                    if (!hhExistsalready) {
+                        hhList.add(new HeavyHitter(v, hashesAtt, 1.0));
+                    }
+                    isHeavy[att]=true;
+                    break;
+                }
+            }
+        }
+        addToSketch(isHeavy);
+    }
+
+
+    private void addToSketch(boolean[] isHeavy) {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1 + 1; a2 < numAttributes; a2++) {
+                if (isHeavy!= null && (isHeavy[a1] || isHeavy[a2])) {
+                    continue;
+                }
                 int[] ha1 = hashes[a1];
                 int[] ha2 = hashes[a2];
                 int sid = sketch_idx(a1, a2);
@@ -542,7 +640,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return width;
     }
     public int getN() {return N;}
-    public int getNumColumns() {return numColumns;};
+    public int getNumColumns() {return numAttributes;};
 
     public void setMIs(double[][] MIs, boolean estMIs) {
         this.MIs = MIs;
@@ -596,13 +694,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         List<Edge> factors =
                 buildFactorization(active, joinAttrRoot, numAttributes, MIs);
         return new factorization(record, factors, active);
-    }
-
-    public double[] queryWithJoinB(int j, factorization f,
-                                 HashMap<Integer,Integer> bucketPerAttribute, boolean isPrimaryKeyTable) {
-
-
-        return queryFactorsJoinBucket(j, f.factors, f.record, bucketPerAttribute, f.active, isPrimaryKeyTable);
     }
 
     private static String literalToString(Expression expr) {

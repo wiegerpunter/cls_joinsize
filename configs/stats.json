@@ -1,6 +1,7 @@
 {
-  "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/processed_queries",
+  "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/test140",
   "duckdbPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/stats.duckdb",
+  "hhValuesMapPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/topK_distributions.csv",
   "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000],
@@ -14,5 +15,6 @@
   "num_rows": [3],
   "width": 1000,
   "ingest_buffers": [0.01,0.1,0.25],
-  "datasetType": "joinSize"
+  "datasetType": "joinSize",
+  "sepHHs": false
 }
