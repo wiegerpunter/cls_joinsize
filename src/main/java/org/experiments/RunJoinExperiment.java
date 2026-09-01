@@ -34,14 +34,88 @@ public class RunJoinExperiment {
 //            rsj.ingestData(d, con);
 //            queryRS(rsj);
 //        }
+        HashMap<String, Integer> joinKeyWidthMap = new HashMap<>();
+        for (String jk : d.globalJoinKeyToTableColumn.keySet()) {
+            joinKeyWidthMap.put(jk, config.joinWidth);
+        }
+        HashMap<String, HashMap<String, Integer>> widthMap = readWidthMaps(config.cardinalityMapPath, joinKeyWidthMap, config.maxLocalWidth);
 
-        HashMap<String, HashMap<String, List<String>>> hhValuesMaps = readhhValuesMaps(config.hhValuesMapPath);
+        HashMap<String, HashMap<String, List<String>>> hhValuesMaps = null;
+        if (config.sepHHs) {
+            hhValuesMaps = readhhValuesMaps(config.hhValuesMapPath);
+        }
         for (int j = 0; j < config.num_rows.length; j++) {
             CMJoin cmj = new CMJoin();
-            long ingestTime = cmj.initialize(d, d.attrMap, 0, config.num_rows[j], config.width, config.sepHHs,hhValuesMaps, con);
+            long ingestTime = cmj.initialize(d, d.attrMap, 0, config.num_rows[j], widthMap, joinKeyWidthMap, config.sepHHs, hhValuesMaps, con);
             queryCM(cmj, ingestTime);
         }
 
+    }
+
+    private HashMap<String, HashMap<String, Integer>> readWidthMaps(String cardinalityMapPath, HashMap<String, Integer> joinKeyWidthMap, int maxLocalWidth) {
+        HashMap<String, HashMap<String, Integer>> cardMap = readCardMaps(cardinalityMapPath);
+        HashMap<String, HashMap<String, Integer>> widthMap = new HashMap<>();
+
+        for (String table : cardMap.keySet()) {
+            HashMap<String, Integer> cardMapTable = cardMap.get(table);
+            for (String orgColName : cardMapTable.keySet()) {
+                String colName = getColName(table, orgColName, d.globalColToJoinKey);
+                if (joinKeyWidthMap.containsKey(colName)) {
+                    widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(orgColName, joinKeyWidthMap.get(colName));
+                    System.out.println("Table " + table + " column " + orgColName + " width: " +joinKeyWidthMap.get(colName));
+                } else {
+                    int card = cardMap.get(table).get(colName);
+
+                    widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(colName,Math.min(maxLocalWidth, card));
+                    System.out.println("Table " + table + " column " + colName + " width: " +Math.min(maxLocalWidth, card));
+
+                }
+            }
+        }
+
+        return widthMap;
+    }
+
+    private String getColName(String table, String orgColName, Map<SynopsisQuery.ColumnKey, String> globalColToJoinKey) {
+        SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, orgColName);
+        return globalColToJoinKey.getOrDefault(c, orgColName);
+    }
+
+    private HashMap<String, HashMap<String, Integer>> readCardMaps(String path) {
+        HashMap<String, HashMap<String, Integer>> cardinalityMap =new HashMap<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+
+            String line = br.readLine(); // header
+
+            while ((line = br.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split(",", -1);
+
+                if (parts.length < 3) {
+                    continue;
+                }
+
+                String table = parts[0].trim();
+                String column = parts[1].trim();
+                String cardString = parts[2].trim();
+                int card = Integer.parseInt(cardString);
+
+                cardinalityMap
+                        .computeIfAbsent(table,
+                                k -> new HashMap<>()).computeIfAbsent(column, k->card);
+
+
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read Card file: " + path, e);
+        }
+
+        return cardinalityMap;
     }
 
     private HashMap<String, HashMap<String,List<String>>> readhhValuesMaps(String hhValuesMapPath) {
@@ -135,12 +209,12 @@ public class RunJoinExperiment {
             selections[i] = q.syn_query.selections;
         }
 
-        writeResults(cmj.setting, queryName, estimates, exact, errors, cmj.getDepth(), cmj.getWidth(), cmj.getMemory(),
+        writeResults(cmj.setting, queryName, estimates, exact, errors, cmj.getDepth(), cmj.getMemory(),
                 cmj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins, selections);
     }
 
     private void writeResults(String setting,String[] queryName, double[] estimates, double[] exact,
-                              double[] errors, int d, int w, int ram, int datasetMemory,
+                              double[] errors, int d, int ram, int datasetMemory,
                               long ingestTime, double[][] tableNs, String[][] tableNames, int[][] tableJoinKeys, int[] numTables,
                               List[] joins, List[] selections) throws Exception {
 
@@ -150,16 +224,11 @@ public class RunJoinExperiment {
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
             String[] header = new String[]{"queryID","setting","memUsage","estimate","exact","error","absError","relError",
-                    "d","w","datasetMemory","ingestTime", "bias","tableNs","tableNames","tableJoinKeys","numTables","joins","selections"};
+                    "d","datasetMemory","ingestTime","tableNs","tableNames","tableJoinKeys","numTables","joins","selections"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            double bias = 1.0;
-            for (int j = 0; j < tableNs[i].length; j++) {
-                bias*= tableNs[i][j] / (Math.pow(w, tableJoinKeys[i][j]));
-            }
-
-            String[] result = new String[19];
+            String[] result = new String[17];
             result[0] = queryName[i];
             result[1] = setting;
             result[2] = String.valueOf(ram);
@@ -169,16 +238,14 @@ public class RunJoinExperiment {
             result[6] = String.valueOf(Math.abs(estimates[i] - exact[i]));
             result[7] = String.valueOf(Math.abs(estimates[i] - exact[i])/exact[i]);
             result[8] = String.valueOf(d);
-            result[9] = String.valueOf(w);
-            result[10] = String.valueOf(datasetMemory);
-            result[11] = String.valueOf(ingestTime);
-            result[12] = String.valueOf(bias);
-            result[13] = Arrays.toString(tableNs[i]);
-            result[14] = Arrays.toString(tableNames[i]);
-            result[15] = Arrays.toString(tableJoinKeys[i]);
-            result[16] = String.valueOf(numTables[i]);
-            result[17] = String.valueOf(joins[i]);
-            result[18] = String.valueOf(selections[i]);
+            result[9] = String.valueOf(datasetMemory);
+            result[10] = String.valueOf(ingestTime);
+            result[11] = Arrays.toString(tableNs[i]);
+            result[12] = Arrays.toString(tableNames[i]);
+            result[13] = Arrays.toString(tableJoinKeys[i]);
+            result[14] = String.valueOf(numTables[i]);
+            result[15] = String.valueOf(joins[i]);
+            result[16] = String.valueOf(selections[i]);
 
             writer.writeNext(result);
         }

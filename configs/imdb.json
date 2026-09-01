@@ -1,7 +1,7 @@
 {
   "queryPath": "/home/wieger/Downloads/imdb_csv/queries/cardinality_queries_eq_only",
   "duckdbPath": "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb",
-  "hhValuesMapPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/topK_distributions.csv",
+  "hhValuesMapPath": "",
   "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000],

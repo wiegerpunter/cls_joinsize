@@ -21,10 +21,11 @@ public class Config {
     public int latentCard;
     public int[] num_rows;
     public double[] ingest_buffers;
-    public int width;
     public String hhValuesMapPath;
-    public int K;
     public boolean sepHHs;
+    public String cardinalityMapPath;
+    public int joinWidth;
+    public int maxLocalWidth;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

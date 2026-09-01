@@ -1,6 +1,8 @@
 {
-  "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/test140",
+  "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/processed_queries",
   "duckdbPath": "/home/wieger/Documents/Research/zipfStats/sql/zipfStats.duckdb",
+  "cardinalityMapPath": "/home/wieger/Documents/Research/zipfStats/sql/cardinalities/cardinality.csv",
+  "hhValuesMapPath": "",
   "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000],
@@ -14,5 +16,6 @@
   "num_rows": [3],
   "width": 1000,
   "ingest_buffers": [0.01,0.1,0.25],
-  "datasetType": "joinSize"
+  "datasetType": "joinSize",
+  "sepHHs": false
 }

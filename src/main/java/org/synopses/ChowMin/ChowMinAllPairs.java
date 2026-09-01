@@ -25,7 +25,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      */
     TWODCM[] sketches;
     private final int depth;
-    private final int width;
+//    private final int width;
+    HashMap<Integer, Integer> widthMap;
     private final int[][] seeds;
     private final int[][] hashes;
     private double[][] MIs;
@@ -37,25 +38,29 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final HashMap<String, List<String>> hhValues;
     private final boolean sepHHs;
     private final Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey;
+
+    int[] joinKeyWs;
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
-                           int numAttributes, int depth, int width, int ram, boolean sepHHs, HashMap<String, List<String>> hhValues) {
+                           int numAttributes, int depth, HashMap<String, Integer> stringWidthMap, int ram, boolean sepHHs, HashMap<String, List<String>> hhValues) {
         this.table = table;
         this.columns = columns;
         this.ram = ram;
         this.numAttributes = numAttributes;
-        int[] params = getParams(ram, numAttributes, depth, width);
+        int[] params = getParams(ram, numAttributes, depth);
         this.depth = params[0];
-        this.width = params[1];
+//        this.width = params[1];
+        this.widthMap = getWidthMap(stringWidthMap, columns);
         this.sepHHs = sepHHs;
         this.hhValues = hhValues;
         this.globalColToJoinKey = globalColToJoinKey;
 
         isJoinKey = new boolean[numAttributes];
         this.joinColumns = getJoinColumns();
+        setJoinKeyw();
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.width, a1, a2,
+                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
                         getAttrSpecHashCode(a1, globalColToJoinKey), getAttrSpecHashCode(a2, globalColToJoinKey));
             }
         }
@@ -67,6 +72,15 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
         }
         hashes = new int[numAttributes][this.depth];
+    }
+
+    private HashMap<Integer, Integer> getWidthMap(HashMap<String, Integer> stringWidthMap, String[] columns) {
+        HashMap<Integer, Integer> widthMap = new HashMap<>();
+        for (int i = 0; i < columns.length; i++){
+            int width = stringWidthMap.get(columns[i]);
+            widthMap.put(i, width);
+        }
+        return widthMap;
     }
 
     private List<String> getJoinColumns() {
@@ -117,18 +131,18 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return attr - 1;
     }
 
-    public void computeHashes(int attrValue, int[] hashes, int[] seeds) {
+    public void computeHashes(int att, int attrValue, int[] hashes, int[] seeds) {
         for (int i = 0; i < depth; i++) {
-            hashes[i] = mix(attrValue, seeds[i], width);
+            hashes[i] = mix(attrValue, seeds[i], widthMap.get(att));
         }
     }
 
-    public void computeHashes(String attrValue, int[] hashes, int[] seeds) {
+    public void computeHashes(int att, String attrValue, int[] hashes, int[] seeds) {
         for (int i = 0; i < depth; i++) {
             if (attrValue == null) {
                 hashes[i] = -1;
             } else {
-                hashes[i] = mix(attrValue.hashCode(), seeds[i], width);
+                hashes[i] = mix(attrValue.hashCode(), seeds[i], widthMap.get(att));
             }
         }
     }
@@ -139,9 +153,21 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             int v = record[att];
-            computeHashes(v, h, s);
+            computeHashes(att, v, h, s);
         }
         addToSketch(null);
+    }
+
+    public int getTotalJoinAssignments() {
+        double tot = 1.0;
+        for (int joinKeyW : joinKeyWs) {
+            tot *= joinKeyW;
+        }
+        return (int) tot;
+    }
+
+    public int[] getJoinKeyWs() {
+        return joinKeyWs;
     }
 
     static class HeavyHitter{
@@ -175,7 +201,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             String v = record[att];
-            computeHashes(v, h, s);
+            computeHashes(att, v, h, s);
         }
         addToSketch(null);
     }
@@ -188,7 +214,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             String v = record[att];
-            computeHashes(v, h, s);
+            computeHashes(att, v, h, s);
             if (hhValues==null) {
                 continue;
             }
@@ -474,15 +500,20 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public double[][] estimateMIs() {
 //        double[] MIs = new HashMap<>();
         double[][] MIs = new double[numAttributes*(numAttributes-1)/2][2+this.depth];
-
-        double[] marg1 = new double[width];
-        double[] marg2 = new double[width];
+        int maxWidth = 0;
+        for (int w : widthMap.values()) {
+            if (w > maxWidth) {
+                maxWidth = w;
+            }
+        }
+        double[] marg1 = new double[maxWidth];
+        double[] marg2 = new double[maxWidth];
         for (int a1 = 0; a1 < numAttributes-1; a1++) {
             for (int a2 = a1+1; a2 < numAttributes; a2++) {
                 int sketch_idx = sketch_idx(a1, a2);
                 double[] MIsList = new double[this.depth];
                 for (int j = 0; j < depth; j++) {
-                    double mi = estMI(a1, a2, sketch_idx, j, marg1, marg2);
+                    double mi = estMI(widthMap.get(a1), widthMap.get(a2),a1, a2, sketch_idx, j, marg1, marg2);
                     MIsList[j] = mi;
                 }
                 Arrays.sort(MIsList);
@@ -493,16 +524,19 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return MIs;
     }
 
-    private double estMI(int a1, int a2, int sketch_idx, int j, double[] marg1, double[] marg2) {
-        for (int w = 0; w < width; w++) {
+    private double estMI(int width1, int width2, int a1, int a2, int sketch_idx, int j, double[] marg1, double[] marg2) {
+        for (int w=0; w<width1; w++) {
             marg1[w] = sketches[sketch_idx_first(a1)]
                     .queryMarginalCodomain(a1, w, j);
+        }
+        for (int w = 0; w < width2; w++) {
             marg2[w] = sketches[sketch_idx_first(a2)]
                     .queryMarginalCodomain(a2, w, j);
         }
+
         double mi = 0;
-        for (int w1 = 0; w1 < this.width; w1++) {
-            for (int w2 = 0; w2 < this.width; w2++) {
+        for (int w1 = 0; w1 < width1; w1++) {
+            for (int w2 = 0; w2 < width2; w2++) {
                 double joint = this.sketches[sketch_idx].jointCodomain(w1, w2,j);
                 if (joint == 0) {
                     continue;
@@ -619,15 +653,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return adjMatrix;
     }
 
-    private int[] getParams(int ram, int numAttributes, int d, int w) {
+    private int[] getParams(int ram, int numAttributes, int d) {
         // number of CMs needed: numAttributes + numAttributes - 1
         int numCMs = numAttributes * numAttributes/2 - numAttributes/2;
         int cells = ram / 4;
         int perCM = cells / (d * numCMs);
         int width = (int) Math.sqrt(perCM);
-        if (w != -1) { // consistent w
-            width = w;
-        }
         System.out.println("Chow M All pairs has parameters d: " + d + " w: " +width);
 
         return new int[]{d,width};
@@ -636,8 +667,34 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     public int getd() {
         return depth;
     }
+
+    @Override
     public int getw() {
-        return width;
+        return 0;
+    }
+
+    public int getw(int att) {
+        return widthMap.get(att);
+    }
+    public int getPKw() {
+        return widthMap.get(0);
+    }
+    public void setJoinKeyw() {
+        joinKeyWs = new int[joinColumns.size()];
+        int i = 0;
+        for (String joinColumn : joinColumns) {
+            joinKeyWs[i] = getWidth(joinColumn);
+            i++;
+        }
+    }
+
+    private int getWidth(String col) {
+        for (int i = 0; i <columns.length; i++) {
+            if (columns[i].equals(col)) {
+                return widthMap.get(i);
+            }
+        }
+        throw new RuntimeException("Column "+ col+" not found in " + Arrays.toString(columns));
     }
     public int getN() {return N;}
     public int getNumColumns() {return numAttributes;};

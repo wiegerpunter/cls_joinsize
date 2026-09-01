@@ -17,7 +17,8 @@ public class CMJoin {
     HashMap<String, ChowMinAllPairs> cmj;
     HashMap<String, String[]> attrMap;
     int depth;
-    int width;
+    public HashMap<String, HashMap<String, Integer>> widthMap;
+    HashMap<String, Integer> joinKeyWidthMap;
     public String setting = "CMJoin";
     JoinDataset jd;
 
@@ -26,14 +27,18 @@ public class CMJoin {
         attrMap = new HashMap<>();
     }
 
-    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, int width, boolean sepHHs, HashMap<String, HashMap<String, List<String>>> hhValuesMaps, DuckDBConnection con) {
+    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, HashMap<String, HashMap<String, Integer>> widthMap, HashMap<String, Integer> joinKeyWidthMap, boolean sepHHs, HashMap<String, HashMap<String, List<String>>> hhValuesMaps, DuckDBConnection con) {
         this.depth = depth;
-        this.width = width;
+        this.widthMap = widthMap;
+        this.joinKeyWidthMap = joinKeyWidthMap;
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
         long start = System.currentTimeMillis();
         for (String t : jd.tableNames) {
-            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, width, ram, sepHHs, hhValuesMaps.get(t));
+            HashMap<String, List<String>> hhValuesMapsTable = null;
+            if (sepHHs)
+                hhValuesMapsTable = hhValuesMaps.get(t);
+            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, widthMap.get(t), ram, sepHHs, hhValuesMapsTable);
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();
@@ -73,7 +78,7 @@ public class CMJoin {
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            estimates[j] = estimateJoinSize(synQuery, filtered, width);
+            estimates[j] = estimateJoinSize(synQuery, filtered, widthMap);
             estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
@@ -88,12 +93,14 @@ public class CMJoin {
         return map;
     }
 
-    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered, int w) {
+    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered, HashMap<String, HashMap<String, Integer>> widthMap) {
         // All unique join keys participating in the query
         double estimate = 0.0;
         // Enumerate all possible codomains of the equivalent join keys in this query
         int numJoinKeys = query.numJoinKeys;
-        int totalBuckets = (int) Math.pow(w, numJoinKeys);
+        List<String> joinKeys = setJoinKeyList(query);
+        int[] querySpecificJoinKeyWidthMap = getQuerySpecificJoinKeyWidthMap(joinKeys);
+        int totalBuckets = getTotalGlobalJoinAssignments(querySpecificJoinKeyWidthMap);
         int[][] tableBuckets = new int[filtered.size()][];
         int t=0;
         for (FilteredTable ft:filtered.values()) {
@@ -101,7 +108,7 @@ public class CMJoin {
             t++;
         }
         for (int idx = 0; idx < totalBuckets; idx++) {
-            int[] bucketAssignment = decodeIdx(idx, numJoinKeys, w);
+            int[] bucketAssignment = decodeIdx(idx, querySpecificJoinKeyWidthMap);
             double[][] tableCounts = new double[filtered.size()][];
             int tloop=0;
             for (FilteredTable ft : filtered.values()) {
@@ -110,7 +117,7 @@ public class CMJoin {
                     int jk = query.jkToBucket.get(globalJK);
                     tableBuckets[tloop][i] = bucketAssignment[jk];
                 }
-                int viewIdx = getIdx(tableBuckets[tloop], w);
+                int viewIdx = getIdx(tableBuckets[tloop], ft.s.joinKeyWs);
                 double[] count = ft.view[viewIdx];
                 tableCounts[tloop] = count;
 //                if (ft.isPrimaryKeyJoinKey()) {
@@ -141,7 +148,7 @@ public class CMJoin {
                     int jk =
                             query.jkToBucket.get(globalJK);
 
-                    pkCount[jk][0] = getMarginal(ft, idIdx, bucketAssignment[jk], w);//tableCounts[tloop][0];
+                    pkCount[jk][0] = getMarginal(ft, bucketAssignment[jk]);//tableCounts[tloop][0];
                     if (ft.pkHasPred) {
                         if (tableCounts[tloop][1] > 1.0) {
                             throw new RuntimeException("help");
@@ -216,6 +223,26 @@ public class CMJoin {
         return estimate;
     }
 
+    private List<String> setJoinKeyList(SynopsisQuery query) {
+        return new ArrayList<>(query.globalJoinKeysInQuerySet);
+    }
+
+    private int getTotalGlobalJoinAssignments(int[] querySpecificJoinKeyWidthMap) {
+        double product = 1.0;
+        for (int w : querySpecificJoinKeyWidthMap) {
+            product *= w;
+        }
+        return (int) product;
+    }
+
+    private int[] getQuerySpecificJoinKeyWidthMap(List<String> joinKeys) {
+        int[] querySpecificJoinKeyWidthMap = new int[joinKeys.size()];
+        for (int i = 0; i< joinKeys.size(); i++){
+            querySpecificJoinKeyWidthMap[i] = joinKeyWidthMap.get(joinKeys.get(i));
+        }
+        return querySpecificJoinKeyWidthMap;
+    }
+
     private int getPKIdx(SynopsisQuery.ColumnKey id, List<SynopsisQuery.ColumnKey> unqColumns) {
         for (int i = 0; i < unqColumns.size(); i++) {
             if (unqColumns.get(i).equals(id)) {
@@ -227,9 +254,7 @@ public class CMJoin {
 
     private double getMarginal(
             FilteredTable ft,
-            int columnIndex,
-            int bucket,
-            int w) {
+            int bucket) {
 
         return ft.pkView[bucket];
 //        int k = ft.unqColumns.size();
@@ -263,10 +288,6 @@ public class CMJoin {
         return depth;
     }
 
-    public int getWidth() {
-        return width;
-    }
-
     public int getMemory() {
         int ram = 0;
         for (ChowMinAllPairs sketch : cmj.values()) {
@@ -280,7 +301,7 @@ public class CMJoin {
     public int getDatasetMemory() {
         int ram =0;
         for (ChowMinAllPairs sketch : cmj.values()) {
-            ram = sketch.getN() * sketch.getNumColumns()*4;
+            ram += sketch.getN() * sketch.getNumColumns()*4;
         }
         return ram;
 

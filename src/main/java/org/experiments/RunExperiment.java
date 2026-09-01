@@ -41,13 +41,13 @@ public class RunExperiment {
 //            }
 
             for (int j = 0; j < config.num_rows.length; j++) {
-                ChowMinAllPairs chowLiuMinAllPairs = new ChowMinAllPairs("t1",new String[0],new HashMap<>(), data[0].length, config.num_rows[j],-1, ram,config.sepHHs,  null);
+                ChowMinAllPairs chowLiuMinAllPairs = new ChowMinAllPairs("t1",new String[0],new HashMap<>(), data[0].length, config.num_rows[j],new HashMap<>(), ram,config.sepHHs,  null);
                 chowLiuMinAllPairs.setMIs(MIs, false);
                 runSynopsis(chowLiuMinAllPairs, data, queries, exactAnswer);
 
                 double[][] estimatedMIs = estimateMIs(data, config.num_rows[j], ram);
                 differenceMIs(MIs, estimatedMIs);
-                ChowMinAllPairs chowLiuMinAllPairsEstimated = new ChowMinAllPairs("t1",new String[0],new HashMap<>(),data[0].length, config.num_rows[j], -1,ram, config.sepHHs, null);
+                ChowMinAllPairs chowLiuMinAllPairsEstimated = new ChowMinAllPairs("t1",new String[0],new HashMap<>(),data[0].length, config.num_rows[j], new HashMap<>(),ram, config.sepHHs, null);
                 chowLiuMinAllPairsEstimated.setMIs(estimatedMIs, true);
                 runSynopsis(chowLiuMinAllPairsEstimated, data, queries, exactAnswer);
             }
@@ -99,7 +99,7 @@ public class RunExperiment {
     }
 
     public static double[][] estimateMIs(int[][] data, int numRow, int ram) {
-        ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs("t1", new String[0],new HashMap<>(),data[0].length, numRow, -1,ram, false, null);
+        ChowMinAllPairs ChowLiuMinAllPairs = new ChowMinAllPairs("t1", new String[0],new HashMap<>(),data[0].length, numRow, new HashMap<>(),ram, false, null);
         for (int[] datum : data) {
             ChowLiuMinAllPairs.addIntArr(datum);
         }

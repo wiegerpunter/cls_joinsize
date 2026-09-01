@@ -24,19 +24,19 @@ public class FilteredTable {
         this.unqColumns = unqJoinKeysInTable();
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
-        int total = (int) Math.pow(s.getw(), k);
+        int total = s.getTotalJoinAssignments();
         isPrimaryKeyTable = isPrimaryKeyJoinKey();
         pkHasPred = pkHasPred();
 
         view = new double[total][];
         if (isPrimaryKeyTable) {
-            pkView = new double[s.getw()];
+            pkView = new double[s.getPKw()];
         }
 
         ChowMinAllPairs.factorization f = s.factorize(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
         for (int idx = 0; idx < total; idx++) {
-            int[] buckets = decodeIdx(idx, k, s.getw());
+            int[] buckets = decodeIdx(idx, s.joinKeyWs);
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
             for (int i = 0; i < unqColumns.size();i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
@@ -47,8 +47,8 @@ public class FilteredTable {
         }
 
         if (isPrimaryKeyTable) {
-            for (int idx = 0; idx < s.getw(); idx++) {
-                int[] buckets = decodeIdx(idx, 1, s.getw());
+            for (int idx = 0; idx < s.getPKw(); idx++) {
+                int[] buckets = decodeIdx(idx, new int[]{s.getPKw()});
                 if (!s.columns[0].equals("Id") && !s.columns[0].equals("id")) {
                     throw new RuntimeException("Columns[0] is " + s.columns[0]);
                 }
@@ -66,22 +66,24 @@ public class FilteredTable {
         }
         throw new RuntimeException("No PK column found in " + unqColumns.toString());
     }
-    public static int getIdx(int[] buckets, int w) {
+    public static int getIdx(int[] buckets, int[] w) {
         int idx = 0;
         int mult = 1;
 
-        for (int bucket : buckets) {
-            idx += bucket * mult;
-            mult *= w;
+        for (int i = 0; i < buckets.length; i++) {
+            idx += buckets[i] * mult;
+            mult *= w[i];
         }
+
         return idx;
     }
-    public static int[] decodeIdx(int idx, int k, int w) {
+    public static int[] decodeIdx(int idx, int[] w) {
+        int k = w.length;
         int[] buckets = new int[k];
 
         for (int i = 0; i < k; i++) {
-            buckets[i] = idx % w;
-            idx /= w;
+            buckets[i] = idx % w[i];
+            idx /= w[i];
         }
 
         return buckets;

@@ -7,7 +7,9 @@ public class TWODCM {
 //    public int[][][] CM;
     public int[] CMR;
     private final int depth;
-    private final int width;
+    private final int widthS;
+    private final int widthT;
+
     int attrS; int attrT;
 
     int[] reusableHashesS;
@@ -17,7 +19,9 @@ public class TWODCM {
 
     public TWODCM(int depth, int width, Edge edge) {
         this.depth = depth;
-        this.width = width;
+        this.widthS = width;
+        this.widthT = width;
+
         this.attrS = edge.getS();
         this.attrT = edge.getT();
 
@@ -31,10 +35,12 @@ public class TWODCM {
         CMR = new int[depth * width * width];
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
+        throw new RuntimeException("Outdated");
     }
-    public TWODCM(int depth, int width, int s, int t, int sHashCode, int tHashCode) {
+    public TWODCM(int depth, int widthS, int widthT, int s, int t, int sHashCode, int tHashCode) {
         this.depth = depth;
-        this.width = width;
+        this.widthS = widthS;
+        this.widthT = widthT;
         this.attrS = s;
         this.attrT = t;
 
@@ -45,7 +51,7 @@ public class TWODCM {
             seedsS[j] = (j+1)* sHashCode;
             seedsT[j] = (j+1)* tHashCode;
         }
-        CMR = new int[depth * width * width];
+        CMR = new int[depth * widthS * widthT];
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
@@ -98,11 +104,11 @@ public class TWODCM {
 //        final int mask = width - 1;
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsS[i], width);
+                hashes[i] = mix(attrValue, seedsS[i], widthS);
             }
         } else {
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsT[i], width);
+                hashes[i] = mix(attrValue, seedsT[i], widthT);
             }
         }
     }
@@ -111,11 +117,11 @@ public class TWODCM {
 //        final int mask = width - 1;
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue.hashCode(), seedsS[i], width);
+                hashes[i] = mix(attrValue.hashCode(), seedsS[i], widthS);
             }
         } else {
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue.hashCode(), seedsT[i], width);
+                hashes[i] = mix(attrValue.hashCode(), seedsT[i], widthT);
             }
         }
     }
@@ -126,7 +132,7 @@ public class TWODCM {
     }
 
     public int memory() {
-        return depth  * width * width * 4;
+        return depth  * widthS * widthT * 4;
     }
 
 
@@ -220,16 +226,16 @@ public class TWODCM {
         return marginal(predIdxs, condAttr);
     }
 
-    public int queryMarginalCodomain(int condAttr, int w1, int j) {
+    public int queryMarginalCodomain(int condAttr, int w, int j) {
         int minEstimate = Integer.MAX_VALUE;
         int sumRowEst =0;
         if (attrS==condAttr) {
-            for (int i = 0; i < width; i++) {
-                sumRowEst+= CMR[idx(j, w1, i)];
+            for (int i = 0; i < widthT; i++) {
+                sumRowEst+= CMR[idx(j, w, i)];
             }
         } else {
-            for (int i = 0; i<width; i++){
-                sumRowEst+= CMR[idx(j, i, w1)];
+            for (int i = 0; i<widthS; i++){
+                sumRowEst+= CMR[idx(j, i, w)];
             }
         }
         if (sumRowEst < minEstimate) {
@@ -261,11 +267,11 @@ public class TWODCM {
     int marginalOneRep(int rep, int attr,int predIdx) {
         int sumRowEst=0;
         if (attrS == attr) {
-            for (int i = 0; i < width; i++) {
+            for (int i = 0; i < widthT; i++) {
                 sumRowEst+= CMR[idx(rep, predIdx, i)];
             }
         } else {
-            for (int i = 0; i < width; i++) {
+            for (int i = 0; i < widthS; i++) {
                 sumRowEst += CMR[idx(rep, i, predIdx)];
             }
         }
@@ -297,7 +303,7 @@ public class TWODCM {
     }
 
     public int idx(int d, int x, int y) {
-        return d * (width * width) + x * (width) + y;
+        return d * (widthS * widthT) + x * (widthT) + y;
     }
 
     public int getCount(int row, int u, int v, int xu, int xv) {
