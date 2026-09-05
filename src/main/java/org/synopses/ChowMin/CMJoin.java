@@ -78,7 +78,7 @@ public class CMJoin {
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            estimates[j] = estimateJoinSize(synQuery, filtered, widthMap);
+            estimates[j] = estimateJoinSize(synQuery, filtered);
             estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
@@ -93,7 +93,7 @@ public class CMJoin {
         return map;
     }
 
-    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered, HashMap<String, HashMap<String, Integer>> widthMap) {
+    private double estimateJoinSize(SynopsisQuery query, Map<String, FilteredTable> filtered) {
         // All unique join keys participating in the query
         double estimate = 0.0;
         // Enumerate all possible codomains of the equivalent join keys in this query

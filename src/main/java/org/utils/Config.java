@@ -26,6 +26,16 @@ public class Config {
     public String cardinalityMapPath;
     public int joinWidth;
     public int maxLocalWidth;
+    public boolean withDeletes;
+    public double bufferASH;
+    public int numStoredAttributes;
+    public double[] ingestBuffers;
+    public boolean expReadFile;
+    public boolean expASH;
+    public boolean expChowMin;
+    public boolean expResSample;
+    public boolean useBufferInQuery;
+    public int depth;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

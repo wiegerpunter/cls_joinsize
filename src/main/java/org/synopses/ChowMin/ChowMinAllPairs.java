@@ -25,7 +25,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
      */
     TWODCM[] sketches;
     private final int depth;
-//    private final int width;
     HashMap<Integer, Integer> widthMap;
     private final int[][] seeds;
     private final int[][] hashes;
@@ -61,17 +60,63 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
                 sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
-                        getAttrSpecHashCode(a1, globalColToJoinKey), getAttrSpecHashCode(a2, globalColToJoinKey));
+                        getAttrSpecHashCode(a1, globalColToJoinKey, false), getAttrSpecHashCode(a2, globalColToJoinKey, false));
             }
         }
         seeds = new int[numAttributes][this.depth];
         for (int i = 0; i < numAttributes; i++) {
-            int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey);
+            int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey, false);
             for (int j = 0; j < seeds[i].length; j++) {
                 seeds[i][j] = (j+1)*attrSpecSeed;
             }
         }
         hashes = new int[numAttributes][this.depth];
+    }
+
+    public ChowMinAllPairs(int ram, int numAttributes, int[] params) {
+        this.table = "singleTable";
+        this.columns = makeColumnsSingleTable(numAttributes);
+        this.hhValues = null;
+        this.joinColumns = null;
+        this.sepHHs = false;
+        this.globalColToJoinKey = null;
+        this.ram = ram;
+        this.numAttributes = numAttributes;
+        this.depth = params[0];
+        this.widthMap = makeWidthMapSingleTable(numAttributes, params[1]); // only when using joins
+
+        isJoinKey = new boolean[numAttributes];
+        sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
+        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
+            for (int a2 = a1+1; a2<numAttributes; a2++) {
+                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
+                        getAttrSpecHashCode(a1, globalColToJoinKey, true), getAttrSpecHashCode(a2, globalColToJoinKey, true));
+            }
+        }
+        seeds = new int[numAttributes][this.depth];
+        for (int i = 0; i < numAttributes; i++) {
+            int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey, true);
+            for (int j = 0; j < seeds[i].length; j++) {
+                seeds[i][j] = (j+1)*attrSpecSeed;
+            }
+        }
+        hashes = new int[numAttributes][this.depth];
+    }
+
+    private HashMap<Integer, Integer> makeWidthMapSingleTable(int numAttributes, int width) {
+        widthMap = new HashMap<>();
+        for (int i = 0; i < numAttributes; i++) {
+            widthMap.put(i, width);
+        }
+        return widthMap;
+    }
+
+    private String[] makeColumnsSingleTable(int numAttributes) {
+        String[] columns = new String[numAttributes];
+        for (int i = 0; i < columns.length; i++) {
+            columns[i] = String.valueOf(i);
+        }
+        return columns;
     }
 
     private HashMap<Integer, Integer> getWidthMap(HashMap<String, Integer> stringWidthMap, String[] columns) {
@@ -96,7 +141,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         return joinKeys;
     }
 
-    private int getAttrSpecHashCode(int colidx, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey) {
+    private int getAttrSpecHashCode(int colidx, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey, boolean singleTable) {
+        if (singleTable) {
+            return String.valueOf(colidx).hashCode();
+        }
+
         SynopsisQuery.ColumnKey c = new SynopsisQuery.ColumnKey(table, columns[colidx]);
         int attrSpecSeed;
         if (isJoinKey[colidx] && globalColToJoinKey.containsKey(c)) {
@@ -168,6 +217,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     public int[] getJoinKeyWs() {
         return joinKeyWs;
+    }
+
+    public void printParams() {
+        System.out.println("ChowMin with d: "+ depth + ", width: " + widthMap.get(0));
     }
 
     static class HeavyHitter{

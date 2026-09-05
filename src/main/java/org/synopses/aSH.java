@@ -24,6 +24,10 @@ public class aSH extends AbstractSynopsis{
 
     boolean useBufferInQuery;
 
+    public void printParams() {
+        System.out.println("aSH has size " + maxSize + " buffer size " + sketchSize);
+    }
+
     class IntArrayKey {
         private final int[] data;
 
@@ -43,14 +47,16 @@ public class aSH extends AbstractSynopsis{
         }
     }
 
-    public aSH(int ram, int numAttributes, boolean useBufferInQuery, double ingestBuffer, int seed) {
+    public aSH(int ram, int numAttributes, int[] parameters, boolean useBufferInQuery, double ingestBuffer, int seed) {
         setting = "aSH";
         if (useBufferInQuery) {
             setting += "_buffer_" + ingestBuffer;
         }
         this.ram = ram;
-        this.maxSize = (int) ((double) ram / (32 * numAttributes + 64*5 + 2*32)); // 64 for the size of the Double array and Tis array
-        this.sketchSize = (int) (maxSize*ingestBuffer);
+        this.numAttrs = numAttributes;
+//        this.maxSize = (int) ((double) ram / (32 * numAttributes + 64*5 + 2*32)); // 64 for the size of the Double array and Tis array
+        this.maxSize = parameters[0] + parameters[1];
+        this.sketchSize = parameters[0];
         sketch = new HashMap<>(maxSize);
         this.count = 0;
 

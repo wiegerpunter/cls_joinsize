@@ -14,7 +14,8 @@
   "printData": false,
   "numClusters": 2,
   "num_rows": [3],
-  "width": 1000,
+  "joinWidth": 100,
+  "maxLocalWidth": 10,
   "ingest_buffers": [0.01,0.1,0.25],
   "datasetType": "joinSize",
   "sepHHs": false
