@@ -38,7 +38,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final boolean sepHHs;
     private final Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey;
 
-    int[] joinKeyWs;
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
                            int numAttributes, int depth, HashMap<String, Integer> stringWidthMap, int ram, boolean sepHHs, HashMap<String, List<String>> hhValues) {
         this.table = table;
@@ -55,14 +54,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
         isJoinKey = new boolean[numAttributes];
         this.joinColumns = getJoinColumns();
-        setJoinKeyw();
-        sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
-        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
-            for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
-                        getAttrSpecHashCode(a1, globalColToJoinKey, false), getAttrSpecHashCode(a2, globalColToJoinKey, false));
-            }
-        }
         seeds = new int[numAttributes][this.depth];
         for (int i = 0; i < numAttributes; i++) {
             int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey, false);
@@ -70,6 +61,16 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 seeds[i][j] = (j+1)*attrSpecSeed;
             }
         }
+
+
+        sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
+        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
+            for (int a2 = a1+1; a2<numAttributes; a2++) {
+                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
+                        seeds[a1], seeds[a2]);
+            }
+        }
+
         hashes = new int[numAttributes][this.depth];
     }
 
@@ -87,12 +88,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
         isJoinKey = new boolean[numAttributes];
         sketches = new TWODCM[numAttributes*(numAttributes-1)/2];
-        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
-            for (int a2 = a1+1; a2<numAttributes; a2++) {
-                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
-                        getAttrSpecHashCode(a1, globalColToJoinKey, true), getAttrSpecHashCode(a2, globalColToJoinKey, true));
-            }
-        }
         seeds = new int[numAttributes][this.depth];
         for (int i = 0; i < numAttributes; i++) {
             int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey, true);
@@ -100,6 +95,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 seeds[i][j] = (j+1)*attrSpecSeed;
             }
         }
+        for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
+            for (int a2 = a1+1; a2<numAttributes; a2++) {
+                sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
+                        seeds[a1], seeds[a2]);
+            }
+        }
+
         hashes = new int[numAttributes][this.depth];
     }
 
@@ -152,6 +154,9 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             attrSpecSeed = globalColToJoinKey.get(c).hashCode();
         } else {
             attrSpecSeed = columns[colidx].hashCode();
+        }
+        if (attrSpecSeed < 0) {
+            attrSpecSeed*=-1;
         }
         return attrSpecSeed;
     }
@@ -207,16 +212,21 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         addToSketch(null);
     }
 
-    public int getTotalJoinAssignments() {
-        double tot = 1.0;
-        for (int joinKeyW : joinKeyWs) {
-            tot *= joinKeyW;
-        }
-        return (int) tot;
-    }
+    public int getTotalJoinAssignments(List<SynopsisQuery.ColumnKey> columns) {
+        long total = 1L;
 
-    public int[] getJoinKeyWs() {
-        return joinKeyWs;
+        for (SynopsisQuery.ColumnKey column : columns) {
+            int attr = getIdCol(column.column());
+            total *= widthMap.get(attr);
+
+            if (total > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "Number of join-key bucket assignments exceeds integer range"
+                );
+            }
+        }
+
+        return (int) total;
     }
 
     public void printParams() {
@@ -537,13 +547,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             }
         }
         if (isPrimaryKeyTable) { // pass on ratio of PK table.
-            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
-                throw new RuntimeException("Columns[0] is " + columns[0]);
-            }
+//            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
+//                throw new RuntimeException("Columns[0] is " + columns[0]);
+//            }
             pkMarginal = sketches[sketch_idx_first(0)].marginalOneRep(j, 0, k[0]);
             double[] res = new double[2];
-            res[0] = sum;
-            res[1] = sum / Math.max(1.0, pkMarginal);
+            res[0] = Math.max(1.0, pkMarginal);
+            res[1] = sum;
             return res;
         } else {
             return new double[]{sum};
@@ -731,14 +741,6 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     }
     public int getPKw() {
         return widthMap.get(0);
-    }
-    public void setJoinKeyw() {
-        joinKeyWs = new int[joinColumns.size()];
-        int i = 0;
-        for (String joinColumn : joinColumns) {
-            joinKeyWs[i] = getWidth(joinColumn);
-            i++;
-        }
     }
 
     private int getWidth(String col) {

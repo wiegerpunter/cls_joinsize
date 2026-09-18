@@ -31,16 +31,17 @@ public class Main {
         switch (config.datasetType) {
             case "singleTable":
                 for (int i = 0; i < config.numAttributes.length; i++) {
+                    config.numStoredAttributes = config.numAttributes[i];
                     config.setClusters(i);
                     int[][] data = DatasetGenerator.getData(config, config.numAttributes[i]);
                     //        int[][] data = generator.getDataset();
                     DatasetGenerator.Queries Q = DatasetGenerator.genQueries(config.numQueries, config.maxNumPredicates[i], data);
                     int[][] queries = Q.getQueries();
                     int[] exactAnswer = Q.getExactAnswer();
-                    double[][] MIs = computeMIs(data);
-                    List<Edge> chowLiuTree = computeChowLiu(MIs, data[0].length);
+//                    double[][] MIs = computeMIs(data);
+//                    List<Edge> chowLiuTree = computeChowLiu(MIs, data[0].length);
                     RunSingleTableExperiment re = new RunSingleTableExperiment(config, data, queries, exactAnswer);
-                    re.runAllExperiments(config.seed,  MIs, chowLiuTree, config.maxNumPredicates[i]);
+                    re.runAllExperiments(config.seed);
                 }
                 break;
             case "joinSize":

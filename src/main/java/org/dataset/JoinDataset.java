@@ -5,6 +5,7 @@ import org.duckdb.DuckDBConnection;
 import org.utils.Config;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,6 +37,9 @@ public class JoinDataset {
     private void getExactAnswers() throws SQLException {
         // execute query on duckdb
         for (Query q: queries) {
+            if (q.getName().equals("q07.sql")) {
+                System.out.println("debug exact");
+            }
             try (Statement stmt = con.createStatement();
                  ResultSet rs = stmt.executeQuery(q.query_text)) {
 
@@ -56,7 +60,10 @@ public class JoinDataset {
         for (File f : files){
             BufferedReader br = new BufferedReader(new FileReader(f.getAbsoluteFile()));
             if (!f.getName().contains("fkindexes") && !f.getName().contains("schema") && !f.getName().contains("15")) {
-                Query q = new Query(f.getName(), br.readLine());
+                String queryText = Files.readString(f.toPath());
+//                Query q = new Query(f.getName(), br.readLine());
+                Query q = new Query(f.getName(), queryText);
+
                 if (q.syn_query!=null) {
                     queries.add(q);
                 }

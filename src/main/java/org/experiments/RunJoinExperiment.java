@@ -66,8 +66,8 @@ public class RunJoinExperiment {
                 } else {
                     int card = cardMap.get(table).get(colName);
 
-                    widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(colName,Math.min(maxLocalWidth, card));
-                    System.out.println("Table " + table + " column " + colName + " width: " +Math.min(maxLocalWidth, card));
+                    widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(colName,Math.min(maxLocalWidth, 5*card));
+                    System.out.println("Table " + table + " column " + colName + " width: " +Math.min(maxLocalWidth, 5*card));
 
                 }
             }
@@ -182,7 +182,7 @@ public class RunJoinExperiment {
         List<EqualsTo>[] selections = new List[numQueries];
         for (int i = 0; i < numQueries; i++) {
             Query q = d.getQueries()[i];
-            if (q.getName().equals("query_140_252.sql")) {
+            if (q.getName().equals("q03.sql")) {
                 System.out.println("debug");
             }
             CMJoin.QueryEst qEst = cmj.query(q.syn_query);

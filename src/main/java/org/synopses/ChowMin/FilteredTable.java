@@ -6,6 +6,8 @@ import net.sf.jsqlparser.schema.Table;
 import org.dataset.SynopsisQuery;
 import java.util.*;
 
+import static java.lang.Long.sum;
+
 public class FilteredTable {
     public final List<SynopsisQuery.ColumnKey> unqColumns;
     public Table t;
@@ -24,7 +26,12 @@ public class FilteredTable {
         this.unqColumns = unqJoinKeysInTable();
         // this view must represent the filtered table after applying the predicates.
         int k = unqColumns.size();
-        int total = s.getTotalJoinAssignments();
+        int[] queryJoinKeyWs = new int[k];
+        for (int i = 0; i < k; i++) {
+            int attr = s.getIdCol(unqColumns.get(i).column());
+            queryJoinKeyWs[i] = s.widthMap.get(attr);
+        }
+        int total = s.getTotalJoinAssignments(unqColumns);
         isPrimaryKeyTable = isPrimaryKeyJoinKey();
         pkHasPred = pkHasPred();
 
@@ -36,7 +43,7 @@ public class FilteredTable {
         ChowMinAllPairs.factorization f = s.factorize(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
         for (int idx = 0; idx < total; idx++) {
-            int[] buckets = decodeIdx(idx, s.joinKeyWs);
+            int[] buckets = decodeIdx(idx, queryJoinKeyWs);
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
             for (int i = 0; i < unqColumns.size();i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
@@ -49,22 +56,13 @@ public class FilteredTable {
         if (isPrimaryKeyTable) {
             for (int idx = 0; idx < s.getPKw(); idx++) {
                 int[] buckets = decodeIdx(idx, new int[]{s.getPKw()});
-                if (!s.columns[0].equals("Id") && !s.columns[0].equals("id")) {
-                    throw new RuntimeException("Columns[0] is " + s.columns[0]);
-                }
-                int raw =  s.sketches[s.sketch_idx_first(0)].marginalOneRep(j, 0, buckets[0]);
+//                if (!isPK(s.columns[0])) {
+//                    throw new RuntimeException("Columns[0] is " + s.columns[0]);
+//                }
+                double raw =  s.sketches[s.sketch_idx_first(0)].marginalOneRep(j, 0, buckets[0]);
                 pkView[idx] = raw;
             }
         }
-    }
-
-    private String getPK(List<SynopsisQuery.ColumnKey> unqColumns) {
-        for (SynopsisQuery.ColumnKey c : unqColumns) {
-            if (c.column().equals("Id") || c.column().equals("id")) {
-                return c.column();
-            }
-        }
-        throw new RuntimeException("No PK column found in " + unqColumns.toString());
     }
     public static int getIdx(int[] buckets, int[] w) {
         int idx = 0;
@@ -108,19 +106,59 @@ public class FilteredTable {
         return unqColumnList;
     }
 
+    public boolean isPK(SynopsisQuery.ColumnKey c) {
+        if (c.column().equals("Id") || c.column().equals("id")) {
+            // PK is join key in this query;
+            return true;
+        }
+        return isPKTPCH(t, c.column());
+    }
+
     public boolean isPrimaryKeyJoinKey() {
         for (SynopsisQuery.ColumnKey c : unqColumns) {
-            if (c.column().equals("Id") || c.column().equals("id")) {
-                // PK is join key in this query;
+            if (isPK(c)) {
                 return true;
             }
         }
         return false;
     }
 
+    private static boolean isPKTPCH(Table t, String c) {
+        String tname = t.getAlias().getName();
+        if (tname.equals("c")) {
+            if (c.equals("c_custkey")) {
+                return true;
+            }
+        }
+        if (tname.equals("o")) {
+            if (c.equals("o_orderkey")) {
+                return true;
+            }
+        }
+        if (tname.equals("n")) {
+            if (c.equals("n_nationkey")) {
+                return true;
+            }
+        }
+        if (tname.equals("r")) {
+            if (c.equals("r_regionkey")) {
+                return true;
+            }
+        }
+        if (tname.equals("s")) {
+            if (c.equals("s_suppkey")) {
+                return true;
+            }
+        }
+        if (tname.equals("p")) {
+            return c.equals("p_partkey");
+        }
+        return false;
+    }
+
     public boolean pkHasPred() {
         for (SynopsisQuery.ColumnKey c : unqColumns) {
-            if (c.column().equals("Id") || c.column().equals("id")) {
+            if (isPK(c)) {
                 // PK is join key in this query;
                 for (EqualsTo eq : q.selections) {
                     if (SynopsisQuery.ColumnKey.of((Column) eq.getLeftExpression(), q.aliasMap).table().equals(c.table())) {
