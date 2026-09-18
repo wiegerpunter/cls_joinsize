@@ -28,7 +28,7 @@ public class aSH extends AbstractSynopsis{
         System.out.println("aSH has size " + maxSize + " buffer size " + sketchSize);
     }
 
-    class IntArrayKey {
+    static class IntArrayKey {
         private final int[] data;
 
         IntArrayKey(int[] data) {

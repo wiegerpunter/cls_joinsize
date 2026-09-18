@@ -8,7 +8,6 @@ import org.utils.Config;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 
 import static org.experiments.RunSingleTableExperiment.estimateMIs;
 
@@ -26,6 +25,8 @@ public class chowMinExperiment implements Experiment {
         cm.printParams();
         runExperiments.runSynopsis(cm, repetition);
     }
+
+
 
     @Override
     public void setRunExperiments(RunSingleTableExperiment runExperiments) {

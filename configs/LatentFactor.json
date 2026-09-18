@@ -1,11 +1,22 @@
 {
   "N": 1000000,
   "numQueries": 1000,
-  "ramVals": [10000,50000,100000,500000],
-  "numAttributes": 6,
-  "maxNumPredicates": 6,
+  "ramVals": [8000000],
+  "numAttributes": [6],
+  "maxNumPredicates": [6],
   "modelType": "LatentFactorModel",
   "dataDistribution": "Corr",
   "statsData": false,
-  "printData": false
+  "printData": false,
+  "num_rows": [3],
+  "ingest_buffers": [0.01,0.1,0.25],
+  "datasetType": "singleTable",
+  "sepHHs": false,
+  "withDeletes": false,
+  "expReadFile": true,
+  "expASH": true,
+  "expChowMin": true,
+  "expResSample": false,
+  "useBufferInQuery": false,
+  "ingestBuffers": [0.1]
 }

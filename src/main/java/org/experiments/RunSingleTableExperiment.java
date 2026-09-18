@@ -34,7 +34,7 @@ public class RunSingleTableExperiment {
     }
 
 
-    public void runAllExperiments(int repetition,  double[][] MIs, List<Edge> chowLiuTree, int maxNumPredicates) throws Exception {
+    public void runAllExperiments(int repetition) throws Exception {
         RamToPar rtp = new RamToPar(config.numStoredAttributes, config.ramVals);
         for (int ram : config.ramVals) {
             for (String experimentName : getEnabledExperiments()) {
@@ -75,26 +75,6 @@ public class RunSingleTableExperiment {
         }
 //
 //        PlotRunner.main(new String[]{CSV_FILE_NAME});
-    }
-
-    private String[] getColumnNames(int numAttributes) {
-        String[] columns = new String[numAttributes];
-        for (int c = 0; c < columns.length; c++) {
-            columns[c] = String.valueOf(c);
-        }
-        return columns;
-    }
-
-    private static HashMap<String, Integer> readWidthMap(int ram, int d, int numAttributes) {
-        HashMap<String, Integer> map = new HashMap<>();
-        int numCMs = numAttributes * numAttributes/2 - numAttributes/2;
-        int cells = ram / 4;
-        int perCM = cells / (d * numCMs);
-        int width = (int) Math.sqrt(perCM);
-        for (int i = 0; i < numAttributes; i++) {
-            map.put(String.valueOf(i), width);
-        }
-        return map;
     }
 
     private void differenceMIs(double[][] mIs, double[][] estimatedMIs) {
@@ -185,11 +165,13 @@ public class RunSingleTableExperiment {
 
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
-            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","numSamples","ram","query","numPredicates","numAttributes","N","repetition"};
+            String[] header = new String[]{"queryID","setting","memUsage","numLatentAttrs", "ingestTime","queryTime","estimate","exact","error","absError","relError","d","w","numSamples","ram","query","numPredicates","numAttributes","N","repetition","Dataset Memory"};
             writer.writeNext(header);
         }
+
+        int datasetMem = N * numAttributes * 32;
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[20];
+            String[] result = new String[21];
             result[0] = String.valueOf(i);
             result[1] = setting;
             result[2] = String.valueOf(memUsage);
@@ -210,6 +192,7 @@ public class RunSingleTableExperiment {
             result[17] = String.valueOf(numAttributes);
             result[18] = String.valueOf(N);
             result[19] = String.valueOf(repetition);
+            result[20] = String.valueOf(datasetMem);
 
             writer.writeNext(result);
         }

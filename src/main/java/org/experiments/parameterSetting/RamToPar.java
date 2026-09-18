@@ -52,8 +52,8 @@ public class RamToPar {
             double[] info = ramToAdap.get(ram);
             int sampleSize = (int) info[0];
             double ramPerRec = ram / (double) sampleSize;
-            int bufferSize = (int) Math.max(1, 8000000/ramPerRec);
-//            int bufferSize = (int) Math.max((ingestBuffer * sampleSize), 1);
+//            int bufferSize = (int) Math.max(1, 8000000/ramPerRec);
+            int bufferSize = (int) Math.max((ingestBuffer * sampleSize), 1);
             return new int[]{sampleSize - bufferSize, bufferSize, (int) (10*ingestBuffer)};
         } else {
             throw new IllegalArgumentException("RAM not found in ramToAdap");
