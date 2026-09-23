@@ -19,6 +19,7 @@ public class JoinDataset {
     public String[] tableNames;
     public HashMap<String, Integer> numColumnsPerTable;
     public HashMap<String, String[]> attrMap;
+    public HashMap<String, List<String>> jksPerTable = new HashMap<>();
     public Map<ColumnKey,String> globalColToJoinKey = new HashMap<>();
     public Map<String, Map<String, String>> globalJoinKeyToTableColumn = new HashMap<>();
     public Map<String, Integer> globalJoinKeyId = new HashMap<>();
@@ -92,6 +93,8 @@ public class JoinDataset {
 //            checkIfId(c);
 
             globalColToJoinKey.put(c, key);
+            List<String> jks = jksPerTable.computeIfAbsent(c.table(), k -> new ArrayList<>());
+            jks.add(key);
             globalJoinKeyToTableColumn.computeIfAbsent(key, k -> new HashMap<>()).put(c.table(), c.column());
         }
         for (String key : globalJoinKeyToTableColumn.keySet()) {

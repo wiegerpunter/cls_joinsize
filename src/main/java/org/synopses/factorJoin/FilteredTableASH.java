@@ -7,11 +7,11 @@ import org.dataset.SynopsisQuery;
 
 import java.util.*;
 
-public class FilteredTable {
+public class FilteredTableASH {
     public final List<SynopsisQuery.ColumnKey> unqColumns;
     public Table t;
     SynopsisQuery q;
-    ReservoirSample s;
+    aSH s;
     public double sumView =0;
     double[][] view;
     public boolean isPrimaryKeyTable = false;
@@ -21,7 +21,7 @@ public class FilteredTable {
     int[] globalJoinKeyIdx;
     final int[] joinKeyWidths;
 
-    public FilteredTable(Table t, SynopsisQuery query, ReservoirSample s, Map<SynopsisQuery.ColumnKey, String> globalColToJoinKey) {
+    public FilteredTableASH(Table t, SynopsisQuery query, aSH s, Map<SynopsisQuery.ColumnKey, String> globalColToJoinKey) {
         this.t = t;
         this.q = query;
         this.s = s;
@@ -64,7 +64,7 @@ public class FilteredTable {
             pkView = new double[s.getPKw()];
         }
 
-        ReservoirSample.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
+        aSH.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
 
         for (int idx = 0; idx < total; idx++) {
             int[] buckets = decodeIdx(idx, joinKeyWidths);

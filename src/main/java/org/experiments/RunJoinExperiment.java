@@ -8,7 +8,8 @@ import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
 import org.synopses.ChowMin.CMJoin;
 import org.synopses.ChowMin.FilteredTable;
-import org.synopses.factorJoin.FactorJoin;
+import org.synopses.factorJoin.FactorJoinASH;
+import org.synopses.factorJoin.FactorJoinRS;
 import org.utils.Config;
 
 import java.io.*;
@@ -44,20 +45,25 @@ public class RunJoinExperiment {
         if (config.sepHHs) {
             hhValuesMaps = readhhValuesMaps(config.hhValuesMapPath);
         }
-//        long ram=0;
-//        for (int j = 0; j < config.num_rows.length; j++) {
-//            CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap,
-//                    joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
-//            long ingestTime = cmj.initialize(con);
-//            queryCM(cmj, ingestTime);
-//            ram =  cmj.getMemory();
-//        }
+        long ram=0;
+        for (int j = 0; j < config.num_rows.length; j++) {
+            CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap,
+                    joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
+            long ingestTime = cmj.initialize(con);
+            queryCM(cmj, ingestTime);
+            ram +=  cmj.getMemory();
+        }
 
 //        long ram = 52415744;
-        long ram = 8000000;
+//        long ram = 8000000;
         HashMap<String, Buckets> globalJoinKeyBins = readJoinKeyBins(config.binPath, config.joinWidth, d.globalColToJoinKey);
-        HashMap<String, Integer> parMap = getParMap(ram, d.attrMap);
-        FactorJoin fj = new FactorJoin(d, joinKeyWidthMap, parMap, d.attrMap, config.seed, globalJoinKeyBins);
+//        HashMap<String, Integer> parMap = getParMap(ram, d.attrMap);
+//        FactorJoinRS fj = new FactorJoinRS(d, joinKeyWidthMap, parMap, d.attrMap, config.seed, globalJoinKeyBins);
+//        long ingestTime = fj.ingest(con);
+//        queryFJ(fj, ingestTime);
+        double ingestBuffer = 0.1;
+        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.attrMap, d.jksPerTable, ingestBuffer);
+        FactorJoinASH fj = new FactorJoinASH(d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
         long ingestTime = fj.ingest(con);
         queryFJ(fj, ingestTime);
 
@@ -73,7 +79,7 @@ public class RunJoinExperiment {
         // One sampled tuple per table costs 4 bytes per column.
         int bytes_per_tuple =0;
         for (String[] attrs: attrMap.values()){
-            bytes_per_tuple += 4 * attrs.length;
+            bytes_per_tuple += 32 * attrs.length;
         }
 
         // Same number of tuples for every table.
@@ -83,6 +89,41 @@ public class RunJoinExperiment {
 
         for (String t : attrMap.keySet()) {
             parMap.put(t, samples_per_table);
+        }
+        return parMap;
+    }
+
+    private HashMap<String, int[]> getParMapASH(long ram, HashMap<String, String[]> attrMap,
+                                                  HashMap<String, List<String>> jksPerTable,
+                                                  double ingestBuffer) {
+        int num_tables = attrMap.size();
+
+        if (num_tables == 0) {
+            return null;
+        }
+
+        // One sampled tuple per table costs 4 bytes per column.
+        int bytes_per_tuple =0;
+        for (String tableName: attrMap.keySet()){
+            int numJoinKeys = 0;
+            if (!jksPerTable.getOrDefault(tableName,new ArrayList<>()).isEmpty()){
+                numJoinKeys = jksPerTable.get(tableName).size();
+            }
+            bytes_per_tuple += 32 * (attrMap.get(tableName).length + numJoinKeys) + 5 * 64 + 2 *32;
+        }
+
+        // Same number of tuples for every table.
+        int samples_per_table = (int) ram / bytes_per_tuple;
+//        int bufferSize = (int) Math.max((ingestBuffer * samples_per_table), 1);
+        int bufferSize = (int) Math.max(1, 8000000/bytes_per_tuple);
+        if (bufferSize>= samples_per_table) {
+            bufferSize = 1;
+        }
+        samples_per_table = samples_per_table - bufferSize;
+        HashMap<String, int[]> parMap = new HashMap<>();
+
+        for (String t : attrMap.keySet()) {
+            parMap.put(t, new int[]{samples_per_table, bufferSize});
         }
         return parMap;
     }
@@ -291,7 +332,7 @@ public class RunJoinExperiment {
         return hhValuesMaps;
     }
 
-    private void queryFJ(FactorJoin fj, long ingestTime) throws Exception {
+    private void queryFJ(FactorJoinASH fj, long ingestTime) throws Exception {
         // execute queries in d on reservoir samples
         int numQueries = d.getQueries().length;
         String[] queryName = new String[numQueries];

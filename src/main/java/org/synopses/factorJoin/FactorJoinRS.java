@@ -14,20 +14,20 @@ import java.util.*;
 import static org.synopses.ChowMin.FilteredTable.decodeIdx;
 import static org.synopses.ChowMin.FilteredTable.getIdx;
 
-public class FactorJoin {
+public class FactorJoinRS {
     HashMap<String, ReservoirSample> sketch;
     HashMap<String, String[]> attrMap;
     public HashMap<String, Integer> parMap;
     HashMap<String, Integer> joinKeyWidthMap;
     public HashMap<String, HashMap<String, Integer>> widthMap;
-    public String setting = "FactorJoin";
+    public String setting = "FactorJoin_RS";
     HashMap<String, Integer> numColumnsPerTable;
     JoinDataset jd;
 
-    public FactorJoin(JoinDataset jd, HashMap<String, Integer> joinKeyWidthMap,
-                      HashMap<String, Integer> parMap, HashMap<String, String[]> attrMap,
-                      int repetition,
-                      HashMap<String, RunJoinExperiment.Buckets> globalJoinKeyBins
+    public FactorJoinRS(JoinDataset jd, HashMap<String, Integer> joinKeyWidthMap,
+                        HashMap<String, Integer> parMap, HashMap<String, String[]> attrMap,
+                        int repetition,
+                        HashMap<String, RunJoinExperiment.Buckets> globalJoinKeyBins
                       ) {
         this.parMap = parMap;
         this.attrMap = attrMap;
@@ -84,15 +84,15 @@ public class FactorJoin {
         // All unique join keys participating in the query.
         List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
 
-        Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
-        Map<String, FilteredTable> filtered = filterTables(synQuery); // applying local predicates.
+        Map<Double, Map<String, FilteredTableRS>> estToFilteredMap = new HashMap<>();
+        Map<String, FilteredTableRS> filtered = filterTables(synQuery); // applying local predicates.
 
         return estimateJoinSize(synQuery, filtered, joinKeys);
     }
-    private Map<String, FilteredTable> filterTables(SynopsisQuery query) {
-        HashMap<String, FilteredTable> map = new HashMap<>();
+    private Map<String, FilteredTableRS> filterTables(SynopsisQuery query) {
+        HashMap<String, FilteredTableRS> map = new HashMap<>();
         for (Table t: query.tables) {
-            map.put(t.getAlias().getName(), new FilteredTable(t, query, sketch.get(t.getName()), jd.globalColToJoinKey));
+            map.put(t.getAlias().getName(), new FilteredTableRS(t, query, sketch.get(t.getName()), jd.globalColToJoinKey));
         }
         return map;
     }
@@ -236,7 +236,7 @@ public class FactorJoin {
 
     private double estimateJoinSize(
             SynopsisQuery query,
-            Map<String, FilteredTable> filtered, List<String> joinKeys) {
+            Map<String, FilteredTableRS> filtered, List<String> joinKeys) {
 
         double estimate = 0.0;
         int numJoinKeys = query.numJoinKeys;
@@ -257,7 +257,7 @@ public class FactorJoin {
         int[][] tableBuckets = new int[filtered.size()][];
 
         int tableIdx = 0;
-        for (FilteredTable ft : filtered.values()) {
+        for (FilteredTableRS ft : filtered.values()) {
             tableBuckets[tableIdx] =
                     new int[ft.unqColumns.size()];
             tableIdx++;
@@ -290,7 +290,7 @@ public class FactorJoin {
 
             tableIdx = 0;
 
-            for (FilteredTable ft : filtered.values()) {
+            for (FilteredTableRS ft : filtered.values()) {
 
                 /*
                  * Project the global join-key assignment onto the
@@ -348,7 +348,7 @@ public class FactorJoin {
 
             tableIdx = 0;
 
-            for (FilteredTable ft : filtered.values()) {
+            for (FilteredTableRS ft : filtered.values()) {
 
                 for (int i = 0;
                      i < ft.unqColumns.size();
@@ -422,7 +422,7 @@ public class FactorJoin {
 
             tableIdx = 0;
 
-            for (FilteredTable ft : filtered.values()) {
+            for (FilteredTableRS ft : filtered.values()) {
 
                 double count =
                         tableCounts[tableIdx][0];
@@ -519,7 +519,7 @@ public class FactorJoin {
     }
 
     private double getMarginal(
-            FilteredTable ft,
+            FilteredTableRS ft,
             int bucket) {
 
         return ft.pkView[bucket];

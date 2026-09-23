@@ -34,4 +34,8 @@ public class Formulas {
     static int ramOmniArr(int numAttrsToUse, int depth, int B) {
         return (int) ((depth * numAttrsToUse + 1) * B  * 32L);
     }
+
+    public static  int ramASHWithBins(int maxSize, int numAttrs, int numJoinKeys) {
+        return maxSize * (32 * (numAttrs + numJoinKeys) + 5 * 64 + 2 *32);
+    }
 }
