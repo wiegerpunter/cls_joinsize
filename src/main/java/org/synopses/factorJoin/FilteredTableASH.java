@@ -65,7 +65,9 @@ public class FilteredTableASH {
         }
 
         aSH.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
-
+        if (s.count< s.maxSize) {
+            System.out.println("Table " + t.getAlias().getName() + " has N=" + s.count  + ", but uses " + s.maxSize + " samples with size: " +s.size);
+        }
         for (int idx = 0; idx < total; idx++) {
             int[] buckets = decodeIdx(idx, joinKeyWidths);
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());

@@ -62,9 +62,17 @@ public class FactorJoinASH {
                     int[] rec = new int[numColumns];
                     for (int col = 1; col <= numColumns; col++) {
                         if (syn.isJoinKey[col-1]){
-                            rec[col -1] = Integer.parseInt(rs.getString(col));
+                            if (rs.getString(col) != null) {
+                                rec[col - 1] = Integer.parseInt(rs.getString(col));
+                            } else {
+                                rec[col - 1] = -999;
+                            }
                         } else {
-                            rec[col - 1] = rs.getString(col).hashCode();
+                            if (rs.getString(col) != null) {
+                                rec[col - 1] = rs.getString(col).hashCode();
+                            } else {
+                                rec[col-1]=-999;
+                            }
                         }
                     }
                     syn.addArr(rec);
@@ -555,7 +563,7 @@ public class FactorJoinASH {
     public int getDatasetMemory() {
         int ram =0;
         for (aSH sketch : sketch.values()) {
-            ram += sketch.getN() * sketch.getNumColumns()*4;
+            ram += sketch.getN() * sketch.getNumColumns()*32;
         }
         return ram;
 

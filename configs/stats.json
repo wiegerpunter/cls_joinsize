@@ -1,6 +1,7 @@
 {
   "queryPath": "/home/wieger/End-to-End-CardEst-Benchmark/workloads/stats_CEB/sub_plan_queries/test140",
   "duckdbPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/stats.duckdb",
+  "binPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/equiWidth/columnDomains.csv",
   "hhValuesMapPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/topK_distributions.csv",
   "cardinalityMapPath": "/home/wieger/End-to-End-CardEst-Benchmark/datasets/cardinalities/cardinality.csv",
   "N": 10000000,
@@ -13,7 +14,7 @@
   "maxNumPredicates": [3],
   "printData": false,
   "numClusters": 2,
-  "num_rows": [1,3],
+  "num_rows": [3],
   "joinWidth": 100,
   "maxLocalWidth": 64,
   "ingest_buffers": [0.01,0.1,0.25],

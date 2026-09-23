@@ -97,8 +97,9 @@ public class CMJoin {
             estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
-        Map<String, FilteredTable> filteredEstimate = estToFilteredMap.get(estimates[estimates.length/2]);
-        return new QueryEst(estimates[estimates.length/2], filteredEstimate);
+        Map<String, FilteredTable> filteredEstimate = estToFilteredMap.get(estimates[0]);
+        return new QueryEst(estimates[0], filteredEstimate);
+//        return new QueryEst(estimates[estimates.length/2], filteredEstimate);
     }
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
@@ -571,7 +572,7 @@ public class CMJoin {
     public int getDatasetMemory() {
         int ram =0;
         for (ChowMinAllPairs sketch : cmj.values()) {
-            ram += sketch.getN() * sketch.getNumColumns()*4;
+            ram += sketch.getN() * sketch.getNumColumns()*32;
         }
         return ram;
 

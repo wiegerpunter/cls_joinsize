@@ -47,6 +47,7 @@ public class RunJoinExperiment {
         }
         long ram=0;
         for (int j = 0; j < config.num_rows.length; j++) {
+            ram=0;
             CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap,
                     joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
             long ingestTime = cmj.initialize(con);
@@ -62,7 +63,7 @@ public class RunJoinExperiment {
 //        long ingestTime = fj.ingest(con);
 //        queryFJ(fj, ingestTime);
         double ingestBuffer = 0.1;
-        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.attrMap, d.jksPerTable, ingestBuffer);
+        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer);
         FactorJoinASH fj = new FactorJoinASH(d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
         long ingestTime = fj.ingest(con);
         queryFJ(fj, ingestTime);
@@ -95,6 +96,7 @@ public class RunJoinExperiment {
 
     private HashMap<String, int[]> getParMapASH(long ram, HashMap<String, String[]> attrMap,
                                                   HashMap<String, List<String>> jksPerTable,
+                                                HashMap<String, Buckets> globalJoinKeyBins,
                                                   double ingestBuffer) {
         int num_tables = attrMap.size();
 
@@ -398,7 +400,7 @@ public class RunJoinExperiment {
         List<EqualsTo>[] selections = new List[numQueries];
         for (int i = 0; i < numQueries; i++) {
             Query q = d.getQueries()[i];
-            if (q.getName().equals("q40.sql")) {
+            if (q.getName().equals("q03.sql")) {
                 System.out.println("Debug");
             }
             long start = System.currentTimeMillis();
