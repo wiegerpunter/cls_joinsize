@@ -17,17 +17,14 @@ public class ReservoirSample {
     private final int size;
     private final int numAttributes;
     Random rn;
-    HashMap<Integer, Integer> widthMap;
-    private String setting;
-    private String table;
-    private String[] columns;
+    private final String table;
+    private final String[] columns;
     public final boolean[] isJoinKey;
     public final HashMap<Integer, RunJoinExperiment.Buckets> joinKeyBinMap = new HashMap<>();
 
     public ReservoirSample(String t, String[] columns, Map<SynopsisQuery.ColumnKey, String> globalColumnToJoinKey,
                            int numAttributes, int size, int repetition,
                            HashMap<String, RunJoinExperiment.Buckets> globalJoinKeyBins) {
-        setting = "ReservoirSample";
         this.table = t;
         this.columns = columns;
         this.size = size;
