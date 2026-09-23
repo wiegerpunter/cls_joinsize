@@ -22,23 +22,33 @@ public class CMJoin {
     public String setting = "CMJoin";
     JoinDataset jd;
 
-    public CMJoin() {
+    public CMJoin(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth,
+                  HashMap<String, HashMap<String, Integer>> widthMap,
+                  HashMap<String, Integer> joinKeyWidthMap, boolean sepHHs,
+                  HashMap<String, HashMap<String, List<String>>> hhValuesMaps, int seed) {
         cmj = new HashMap<>();
-        attrMap = new HashMap<>();
-    }
-
-    public long initialize(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth, HashMap<String, HashMap<String, Integer>> widthMap, HashMap<String, Integer> joinKeyWidthMap, boolean sepHHs, HashMap<String, HashMap<String, List<String>>> hhValuesMaps, DuckDBConnection con) {
+        this.attrMap = attrMap;
         this.depth = depth;
         this.widthMap = widthMap;
         this.joinKeyWidthMap = joinKeyWidthMap;
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
-        long start = System.currentTimeMillis();
+        HashMap<String, List<String>> hhValuesMapsTable = null;
         for (String t : jd.tableNames) {
-            HashMap<String, List<String>> hhValuesMapsTable = null;
             if (sepHHs)
                 hhValuesMapsTable = hhValuesMaps.get(t);
-            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t), depth, widthMap.get(t), ram, sepHHs, hhValuesMapsTable);
+            ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t),
+                    depth, widthMap.get(t), ram, sepHHs, hhValuesMapsTable, seed);
+
+            cmj.put(t, syn);
+        }
+    }
+
+    public long initialize(DuckDBConnection con) {
+
+        long start = System.currentTimeMillis();
+        for (String t : jd.tableNames) {
+            ChowMinAllPairs syn = cmj.get(t);
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
             try (Statement stmt = con.createStatement();
@@ -55,7 +65,6 @@ public class CMJoin {
                 throw new RuntimeException(e);
             }
 
-            cmj.put(t, syn);
         }
         long end = System.currentTimeMillis();
         long time=end-start;
@@ -65,6 +74,7 @@ public class CMJoin {
         }
         return time;
     }
+
     public record QueryEst(double estimate, Map<String, FilteredTable> map) {
 
     }
@@ -75,10 +85,15 @@ public class CMJoin {
         // 2. apply predicates selecting for the eq join key something that it has to multiply with
         // 3. join size is estimated by inference procedure over the chowmin hash codomains per eq join key and multiplying with the local predicate tensors.
         double[] estimates = new double[depth];
+
+        // All unique join keys participating in the query.
+        List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
+
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            estimates[j] = estimateJoinSize(synQuery, filtered);
+
+            estimates[j] = estimateJoinSize(synQuery, filtered, joinKeys);
             estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
@@ -88,7 +103,7 @@ public class CMJoin {
     private Map<String, FilteredTable> filterTables(int j, SynopsisQuery query) {
         HashMap<String, FilteredTable> map = new HashMap<>();
         for (Table t: query.tables) {
-            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName())));
+            map.put(t.getAlias().getName(), new FilteredTable(j, t, query, cmj.get(t.getName()), jd.globalColToJoinKey));
         }
         return map;
     }
@@ -232,13 +247,11 @@ public class CMJoin {
 
     private double estimateJoinSize(
             SynopsisQuery query,
-            Map<String, FilteredTable> filtered) {
+            Map<String, FilteredTable> filtered, List<String> joinKeys) {
 
         double estimate = 0.0;
         int numJoinKeys = query.numJoinKeys;
 
-        // All unique join keys participating in the query.
-        List<String> joinKeys = setJoinKeyList(query);
 
         // Width of each join-key dimension in the query-specific
         // hashed join-key assignment space.
@@ -260,13 +273,23 @@ public class CMJoin {
                     new int[ft.unqColumns.size()];
             tableIdx++;
         }
+        int[] bucketAssignment = new int[numJoinKeys];
 
         /*
          * Enumerate the global hashed join-key assignment space.
          */
+        double[][] tableCounts =
+                new double[filtered.size()][];
+        double[][] pkCount =
+                new double[numJoinKeys][2];
         for (int idx = 0; idx < totalBuckets; idx++) {
-
-            int[] bucketAssignment =
+//            for (int k = numJoinKeys - 1; k >= 0; k--) {
+//                if (++bucketAssignment[k] < queryJoinKeyWidths[k]) {
+//                    break;
+//                }
+//                bucketAssignment[k] = 0;
+//            }
+            bucketAssignment =
                     decodeIdx(idx, queryJoinKeyWidths);
 
             /*
@@ -274,8 +297,7 @@ public class CMJoin {
              * Step 1: obtain the local frequency estimate for every table.
              * ------------------------------------------------------------
              */
-            double[][] tableCounts =
-                    new double[filtered.size()][];
+
 
             tableIdx = 0;
 
@@ -289,27 +311,23 @@ public class CMJoin {
                      i < ft.unqColumns.size();
                      i++) {
 
-                    String globalJK =
-                            jd.globalColToJoinKey.get(
-                                    ft.unqColumns.get(i));
+//                    String globalJK =
+//                            jd.globalColToJoinKey.get(
+//                                    ft.unqColumns.get(i));
 
-                    int jk =
-                            query.jkToBucket.get(globalJK);
+                    int jk = ft.globalJoinKeyIdx[i];
+//                            query.jkToBucket.get(globalJK);
 
                     tableBuckets[tableIdx][i] =
                             bucketAssignment[jk];
                 }
-
-                int[] tableJoinKeyWidths =
-                        getTableJoinKeyWidths(ft);
-
                 int viewIdx =
                         getIdx(
                                 tableBuckets[tableIdx],
-                                tableJoinKeyWidths);
+                                ft.joinKeyWidths);
 
-                tableCounts[tableIdx] =
-                        ft.view[viewIdx];
+                tableCounts[tableIdx] = ft.view[viewIdx];
+
 
                 tableIdx++;
             }
@@ -329,8 +347,7 @@ public class CMJoin {
              * and therefore the FK correction becomes 1.
              * ------------------------------------------------------------
              */
-            double[][] pkCount =
-                    new double[numJoinKeys][2];
+
 
             for (int i = 0;
                  i < numJoinKeys;
@@ -348,18 +365,18 @@ public class CMJoin {
                      i < ft.unqColumns.size();
                      i++) {
 
-                    String globalJK =
-                            jd.globalColToJoinKey.get(
-                                    ft.unqColumns.get(i));
+//                    String globalJK =
+//                            jd.globalColToJoinKey.get(
+//                                    ft.unqColumns.get(i));
 
-                    int jk =
-                            query.jkToBucket.get(globalJK);
-
+//                    int jk =
+//                            query.jkToBucket.get(globalJK);
+                    int jk = ft.globalJoinKeyIdx[i];
                     /*
                      * Only collect PK information when this particular
                      * join key is a PK in this relation.
                      */
-                    if (!isPkForJoinKey(ft, globalJK)) {
+                    if (!ft.pkJoinKey[i]){// isPkForJoinKey(ft, globalJK)) {
                         continue;
                     }
 
@@ -423,16 +440,20 @@ public class CMJoin {
                 if (tableCounts[tableIdx].length>1) {
                     count = tableCounts[tableIdx][1];
                 }
+                if (count==0){
+                    product = 0;
+                    continue;
+                }
                 for (int i = 0;
                      i < ft.unqColumns.size();
                      i++) {
 
-                    String globalJK =
-                            jd.globalColToJoinKey.get(
-                                    ft.unqColumns.get(i));
+//                    String globalJK =
+//                            jd.globalColToJoinKey.get(
+//                                    ft.unqColumns.get(i));
 
-                    int jk =
-                            query.jkToBucket.get(globalJK);
+                    int jk = ft.globalJoinKeyIdx[i];
+//                            query.jkToBucket.get(globalJK);
 
                     /*
                      * If this table is the PK side of this particular
@@ -442,7 +463,7 @@ public class CMJoin {
                      *
                      * Nothing needs to be done.
                      */
-                    if (isPkForJoinKey(ft, globalJK)) {
+                    if (ft.pkJoinKey[i]){//isPkForJoinKey(ft, globalJK)) {
                         continue;
                     }
 
@@ -473,18 +494,15 @@ public class CMJoin {
         return estimate;
     }
 
-    private boolean isPkForJoinKey(FilteredTable ft, String globalJK) {
-        SynopsisQuery.ColumnKey ck = getPK(ft.t, ft.unqColumns);
-        if (ck.column().isEmpty()) {
-            return false;
-        }
-        String column = jd.globalJoinKeyToTableColumn.get(globalJK).get(ft.t.getName());
-        return Objects.equals(ck.column(), column);
-    }
+//    private boolean isPkForJoinKey(FilteredTable ft, String globalJK) {
+//        SynopsisQuery.ColumnKey ck = getPK(ft.t, ft.unqColumns);
+//        if (ck.column().isEmpty()) {
+//            return false;
+//        }
+//        String column = jd.globalJoinKeyToTableColumn.get(globalJK).get(ft.t.getName());
+//        return Objects.equals(ck.column(), column);
+//    }
 
-    private List<String> setJoinKeyList(SynopsisQuery query) {
-        return new ArrayList<>(query.globalJoinKeysInQuerySet);
-    }
 
     private int getTotalGlobalJoinAssignments(int[] querySpecificJoinKeyWidthMap) {
         double product = 1.0;
@@ -534,55 +552,7 @@ public class CMJoin {
 //        return sum;
     }
 
-    private SynopsisQuery.ColumnKey getPK(Table t, List<SynopsisQuery.ColumnKey> unqColumns) {
-        for (SynopsisQuery.ColumnKey c : unqColumns) {
-            if (c.column().equals("Id") || c.column().equals("id")) {
-                return c;
-            }
-            SynopsisQuery.ColumnKey k = isPKTPCH(t, c);
-            if (!k.column().isEmpty()) {
-                return k;
-            }
-        }
-        return new SynopsisQuery.ColumnKey(t.getName(), "");
-//        throw new RuntimeException("No PK column found in " + unqColumns.toString());
-    }
 
-    private static SynopsisQuery.ColumnKey isPKTPCH(Table t, SynopsisQuery.ColumnKey ck) {
-        String tname = t.getAlias().getName();
-        String c = ck.column();
-        if (tname.equals("c")) {
-            if (c.equals("c_custkey")) {
-                return ck;
-            }
-        }
-        if (tname.equals("o")) {
-            if (c.equals("o_orderkey")) {
-                return ck;
-            }
-        }
-        if (tname.equals("n")) {
-            if (c.equals("n_nationkey")) {
-                return ck;
-            }
-        }
-        if (tname.equals("r")) {
-            if (c.equals("r_regionkey")) {
-                return ck;
-            }
-        }
-        if (tname.equals("s")) {
-            if (c.equals("s_suppkey")) {
-                return ck;
-            }
-        }
-        if (tname.equals("p")) {
-            if (c.equals("p_partkey")) {
-                return ck;
-            }
-        }
-        return new SynopsisQuery.ColumnKey(tname, "");
-    }
 
     public int getDepth() {
         return depth;

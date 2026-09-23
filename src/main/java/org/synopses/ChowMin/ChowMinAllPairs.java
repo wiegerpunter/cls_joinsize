@@ -39,7 +39,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     private final Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey;
 
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
-                           int numAttributes, int depth, HashMap<String, Integer> stringWidthMap, int ram, boolean sepHHs, HashMap<String, List<String>> hhValues) {
+                           int numAttributes, int depth, HashMap<String, Integer> stringWidthMap, int ram,
+                           boolean sepHHs, HashMap<String, List<String>> hhValues, int seed) {
         this.table = table;
         this.columns = columns;
         this.ram = ram;
@@ -58,7 +59,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (int i = 0; i < numAttributes; i++) {
             int attrSpecSeed = getAttrSpecHashCode(i, globalColToJoinKey, false);
             for (int j = 0; j < seeds[i].length; j++) {
-                seeds[i][j] = (j+1)*attrSpecSeed;
+                seeds[i][j] = (j+1)*attrSpecSeed + 10*seed;
             }
         }
 
@@ -501,7 +502,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // check ig all margs are same;
         return true;
     }
-    private double[] pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean isPrimaryKeyTable) {
+    private double[] pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean pkHasPred) {
         double sum = 0;
         int[] k = new int[numAttributes];
         double pkMarginal;
@@ -546,7 +547,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 break; // all combinations exhausted
             }
         }
-        if (isPrimaryKeyTable) { // pass on ratio of PK table.
+        if (pkHasPred) { // pass on ratio of PK table.
 //            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
 //                throw new RuntimeException("Columns[0] is " + columns[0]);
 //            }
@@ -825,13 +826,13 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                                           List<Edge> factors,
                                           String[] record,
                                           HashMap<Integer, Integer> bucketPerAttribute,
-                                          HashSet<Integer> active, boolean isPrimaryKeyTable) {
+                                          HashSet<Integer> active, boolean pkHasPred) {
         constructDimensionsOneRep(record, bucketPerAttribute, j, active);
 
         int dims = attributeDimensionsOneRep.size();
         int[] indices = new int[dims];
 
-        return pathQueryOneRep(j, dims, indices, factors, isPrimaryKeyTable);
+        return pathQueryOneRep(j, dims, indices, factors, pkHasPred);
     }
 
     private void constructDimensionsOneRep(String[] record,

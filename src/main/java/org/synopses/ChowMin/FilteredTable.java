@@ -18,8 +18,11 @@ public class FilteredTable {
     public boolean isPrimaryKeyTable = false;
     public boolean pkHasPred = false;
     double[] pkView;
+    boolean[] pkJoinKey;
+    int[] globalJoinKeyIdx;
+    final int[] joinKeyWidths;
 
-    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s) {
+    public FilteredTable(int j, Table t, SynopsisQuery query, ChowMinAllPairs s, Map<SynopsisQuery.ColumnKey, String> globalColToJoinKey) {
         this.t = t;
         this.q = query;
         this.s = s;
@@ -33,6 +36,27 @@ public class FilteredTable {
         }
         int total = s.getTotalJoinAssignments(unqColumns);
         isPrimaryKeyTable = isPrimaryKeyJoinKey();
+        globalJoinKeyIdx = new int[unqColumns.size()];
+        pkJoinKey = new boolean[unqColumns.size()];
+
+//        SynopsisQuery.ColumnKey pk = getPK(t, unqColumns);
+        for (int i = 0; i < unqColumns.size(); i++) {
+            SynopsisQuery.ColumnKey pk = getPK(t, unqColumns.get(i));
+            SynopsisQuery.ColumnKey col = unqColumns.get(i);
+            String globalJK = globalColToJoinKey.get(col);
+            globalJoinKeyIdx[i] =
+                    query.jkToBucket.get(globalJK);
+
+            pkJoinKey[i] =
+                    !pk.column().isEmpty()
+                            && col.column().equals(pk.column());
+        }
+        this.joinKeyWidths = new int[unqColumns.size()];
+
+        for (int i = 0; i < unqColumns.size(); i++) {
+            this.joinKeyWidths[i] = s.widthMap.get(i);
+        }
+
         pkHasPred = pkHasPred();
 
         view = new double[total][];
@@ -64,6 +88,58 @@ public class FilteredTable {
             }
         }
     }
+
+    private SynopsisQuery.ColumnKey getPK(Table t, SynopsisQuery.ColumnKey c) {
+
+        if (c.column().equals("Id") || c.column().equals("id")) {
+            return c;
+        }
+        SynopsisQuery.ColumnKey k = isPKTPCH(t, c);
+        if (!k.column().isEmpty()) {
+            return k;
+        }
+
+        return new SynopsisQuery.ColumnKey(t.getName(), "");
+//        throw new RuntimeException("No PK column found in " + unqColumns.toString());
+    }
+
+
+    private static SynopsisQuery.ColumnKey isPKTPCH(Table t, SynopsisQuery.ColumnKey ck) {
+        String tname = t.getAlias().getName();
+        String c = ck.column();
+        if (tname.equals("c")) {
+            if (c.equals("c_custkey")) {
+                return ck;
+            }
+        }
+        if (tname.equals("o")) {
+            if (c.equals("o_orderkey")) {
+                return ck;
+            }
+        }
+        if (tname.equals("n")) {
+            if (c.equals("n_nationkey")) {
+                return ck;
+            }
+        }
+        if (tname.equals("r")) {
+            if (c.equals("r_regionkey")) {
+                return ck;
+            }
+        }
+        if (tname.equals("s")) {
+            if (c.equals("s_suppkey")) {
+                return ck;
+            }
+        }
+        if (tname.equals("p")) {
+            if (c.equals("p_partkey")) {
+                return ck;
+            }
+        }
+        return new SynopsisQuery.ColumnKey(tname, "");
+    }
+
     public static int getIdx(int[] buckets, int[] w) {
         int idx = 0;
         int mult = 1;

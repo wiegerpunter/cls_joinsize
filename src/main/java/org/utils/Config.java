@@ -36,6 +36,7 @@ public class Config {
     public boolean expResSample;
     public boolean useBufferInQuery;
     public int depth;
+    public String binPath;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];
