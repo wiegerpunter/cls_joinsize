@@ -33,13 +33,19 @@ public class ChowMinAllPairs extends AbstractSynopsis {
     final public String[] columns;
     final public List<String> joinColumns;
     final private boolean[] isJoinKey;
+
+    HashMap<String, Boolean> exactHashable;
+    HashMap<String, HashMap<String, Integer>> exactHashes;
     private final HashMap<String,List<HeavyHitter>> heavyHitters = new HashMap<>();
     private final HashMap<String, List<String>> hhValues;
     private final boolean sepHHs;
     private final Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey;
 
     public ChowMinAllPairs(String table, String[] columns, Map<SynopsisQuery.ColumnKey,String> globalColToJoinKey,
-                           int numAttributes, int depth, HashMap<String, Integer> stringWidthMap, int ram,
+                           int numAttributes, int depth, HashMap<String, Integer> stringWidthMap,
+                           HashMap<String, Boolean> exactHashable,
+                           HashMap<String, HashMap<String, Integer>> exactHashes,
+                           int ram,
                            boolean sepHHs, HashMap<String, List<String>> hhValues, int seed) {
         this.table = table;
         this.columns = columns;
@@ -52,6 +58,8 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         this.sepHHs = sepHHs;
         this.hhValues = hhValues;
         this.globalColToJoinKey = globalColToJoinKey;
+        this.exactHashable = exactHashable;
+        this.exactHashes = exactHashes;
 
         isJoinKey = new boolean[numAttributes];
         this.joinColumns = getJoinColumns();
@@ -68,7 +76,12 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
                 sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
-                        seeds[a1], seeds[a2]);
+                        seeds[a1], seeds[a2],
+                        exactHashable.getOrDefault(
+                                globalColToJoinKey.getOrDefault(new SynopsisQuery.ColumnKey(table, columns[a1]), columns[a1]), false),
+                        exactHashable.getOrDefault(
+                                globalColToJoinKey.getOrDefault(new SynopsisQuery.ColumnKey(table, columns[a2]), columns[a2]), false),
+                        exactHashes.getOrDefault(columns[a1], null), exactHashes.getOrDefault(columns[a2], null));
             }
         }
 
@@ -99,7 +112,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1+1; a2<numAttributes; a2++) {
                 sketches[sketch_idx(a1, a2)] = new TWODCM(this.depth, this.widthMap.get(a1), this.widthMap.get(a2), a1, a2,
-                        seeds[a1], seeds[a2]);
+                        seeds[a1], seeds[a2], false, false, null, null);
             }
         }
 
@@ -192,12 +205,18 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         }
     }
 
-    public void computeHashes(int att, String attrValue, int[] hashes, int[] seeds) {
+    public void computeHashes(int att, String attrValue, int[] hashes, int[] seeds,boolean exactHash,
+                              HashMap<String, Integer> exactHashMap
+                              ) {
         for (int i = 0; i < depth; i++) {
             if (attrValue == null) {
                 hashes[i] = -1;
             } else {
-                hashes[i] = mix(attrValue.hashCode(), seeds[i], widthMap.get(att));
+                if (exactHash) {
+                    hashes[i] = exactHashMap.get(attrValue);
+                } else {
+                    hashes[i] = mix(attrValue.hashCode(), seeds[i], widthMap.get(att));
+                }
             }
         }
     }
@@ -265,7 +284,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             String v = record[att];
-            computeHashes(att, v, h, s);
+            computeHashes(att, v, h, s, exactHashable.getOrDefault(
+                    globalColToJoinKey.getOrDefault(
+                    new SynopsisQuery.ColumnKey(table,columns[att]),columns[att]),false),
+                    exactHashes.getOrDefault(columns[att], null));
         }
         addToSketch(null);
     }
@@ -278,7 +300,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int[] h = hashes[att];
             int[] s = seeds[att];
             String v = record[att];
-            computeHashes(att, v, h, s);
+            computeHashes(att, v, h, s, exactHashable.getOrDefault(
+                            globalColToJoinKey.getOrDefault(
+                                    new SynopsisQuery.ColumnKey(table,columns[att]),columns[att]),false),
+                    exactHashes.getOrDefault(columns[att], null));
             if (hhValues==null) {
                 continue;
             }

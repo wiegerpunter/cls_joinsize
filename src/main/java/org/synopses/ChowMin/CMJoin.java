@@ -4,6 +4,7 @@ import net.sf.jsqlparser.schema.Table;
 import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
+import org.experiments.RunJoinExperiment;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,8 +25,11 @@ public class CMJoin {
 
     public CMJoin(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth,
                   HashMap<String, HashMap<String, Integer>> widthMap,
+                  HashMap<String, HashMap<String, Boolean>> exactHashable,
+                  HashMap<String, HashMap<String, HashMap<String, Integer>>> exactHashMap,
                   HashMap<String, Integer> joinKeyWidthMap, boolean sepHHs,
-                  HashMap<String, HashMap<String, List<String>>> hhValuesMaps, int seed) {
+                  HashMap<String, HashMap<String, List<String>>> hhValuesMaps,
+                  int seed) {
         cmj = new HashMap<>();
         this.attrMap = attrMap;
         this.depth = depth;
@@ -38,7 +42,8 @@ public class CMJoin {
             if (sepHHs)
                 hhValuesMapsTable = hhValuesMaps.get(t);
             ChowMinAllPairs syn = new ChowMinAllPairs(t, attrMap.get(t), jd.globalColToJoinKey, numColumnsPerTable.get(t),
-                    depth, widthMap.get(t), ram, sepHHs, hhValuesMapsTable, seed);
+                    depth, widthMap.get(t), exactHashable.getOrDefault(t, new HashMap<>()),
+                    exactHashMap.getOrDefault(t, new HashMap<>()), ram, sepHHs, hhValuesMapsTable, seed);
 
             cmj.put(t, syn);
         }
@@ -569,10 +574,10 @@ public class CMJoin {
         return ram;
     }
 
-    public int getDatasetMemory() {
-        int ram =0;
+    public long getDatasetMemory() {
+        long ram =0;
         for (ChowMinAllPairs sketch : cmj.values()) {
-            ram += sketch.getN() * sketch.getNumColumns()*32;
+            ram += sketch.getN() * sketch.getNumColumns()*32L;
         }
         return ram;
 

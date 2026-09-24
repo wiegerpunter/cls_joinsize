@@ -54,7 +54,7 @@ public class FilteredTable {
         this.joinKeyWidths = new int[unqColumns.size()];
 
         for (int i = 0; i < unqColumns.size(); i++) {
-            this.joinKeyWidths[i] = s.widthMap.get(i);
+            this.joinKeyWidths[i] = s.widthMap.get(s.getIdCol(unqColumns.get(i).column()));
         }
 
         pkHasPred = pkHasPred();

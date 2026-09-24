@@ -335,7 +335,7 @@ public class aSH {
 
     public int getMemoryUsage() {
         //double v = 1 / (1 - bufferFactor);
-        return Formulas.ramASHWithBins(maxSize, numAttrs, numJoinKeys);
+        return Formulas.ramASHWithBins(size, numAttrs, numJoinKeys);
 //        return (long) maxSize * 32 * (numAttrs + 5); // size * (size of record + size of Double array + Tis array)
     }
 

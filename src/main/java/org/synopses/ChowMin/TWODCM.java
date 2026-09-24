@@ -3,6 +3,8 @@ package org.synopses.ChowMin;
 import com.google.common.hash.HashFunction;
 import org.utils.Edge;
 
+import java.util.HashMap;
+
 public class TWODCM {
 //    public int[][][] CM;
     public int[] CMR;
@@ -12,6 +14,9 @@ public class TWODCM {
 
     int attrS; int attrT;
 
+    boolean exactHashS; boolean exactHashT;
+    HashMap<String, Integer> exactHashMapS;
+    HashMap<String, Integer> exactHashMapT;
     int[] reusableHashesS;
     int[] reusableHashesT;
     int[] seedsS;
@@ -37,7 +42,10 @@ public class TWODCM {
         reusableHashesT = new int[depth];
         throw new RuntimeException("Outdated");
     }
-    public TWODCM(int depth, int widthS, int widthT, int s, int t, int[] seedsS, int[] seedsT) {
+    public TWODCM(int depth, int widthS, int widthT, int s, int t,
+                  int[] seedsS, int[] seedsT,
+                  boolean exactHashS, boolean exactHashT,
+                  HashMap<String, Integer> exactHashMapS, HashMap<String, Integer> exactHashMapT) {
         this.depth = depth;
         this.widthS = widthS;
         this.widthT = widthT;
@@ -47,14 +55,20 @@ public class TWODCM {
         this.seedsS = seedsS;
         this.seedsT = seedsT;
 
+        this.exactHashS = exactHashS;
+        this.exactHashT = exactHashT;
+
+        this.exactHashMapS = exactHashMapS;
+        this.exactHashMapT = exactHashMapT;
+
         CMR = new int[depth * widthS * widthT];
         reusableHashesS = new int[depth];
         reusableHashesT = new int[depth];
     }
 
     public void add(int e1, int e2) {
-        computeHashes(e1, reusableHashesS, true);
-        computeHashes(e2, reusableHashesT, false);
+        computeHashes(e1, reusableHashesS, true, exactHashS);
+        computeHashes(e2, reusableHashesT, false, exactHashT);
 
         for (int j = 0; j < depth; j++) {
             CMR[idx(j, reusableHashesS[j], reusableHashesT[j])] += 1;
@@ -70,8 +84,8 @@ public class TWODCM {
 
 
     public int query(int e1, int e2) {
-        computeHashes(e1, reusableHashesS, true);
-        computeHashes(e2, reusableHashesT, false);
+        computeHashes(e1, reusableHashesS, true, exactHashS);
+        computeHashes(e2, reusableHashesT, false, exactHashT);
         int minEstimate = Integer.MAX_VALUE;
         for (int i = 0; i < depth; i++) {
             if (CMR[idx(i, reusableHashesS[i], reusableHashesT[i])] < minEstimate) {
@@ -96,28 +110,45 @@ public class TWODCM {
     }
 
 
-    public void computeHashes(int attrValue, int[] hashes, boolean source) {
+    public void computeHashes(int attrValue, int[] hashes, boolean source, boolean exactHash) {
 //        final int mask = width - 1;
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsS[i], widthS);
+                if (exactHash) {
+                    hashes[i] = attrValue;
+                } else {
+                    hashes[i] = mix(attrValue, seedsS[i], widthS);
+                }
             }
         } else {
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue, seedsT[i], widthT);
+                if (exactHash) {
+                    hashes[i] = attrValue;
+                } else {
+                    hashes[i] = mix(attrValue, seedsT[i], widthT);
+                }
             }
         }
     }
 
-    public void computeHashes(String attrValue, int[] hashes, boolean source) {
-//        final int mask = width - 1;
+    public void computeHashes(String attrValue, int[] hashes, boolean source, boolean exactHash,
+                              HashMap<String, Integer> exactHashMap) {
+//        throw new RuntimeException("Not using exact hash/");
         if (source) { // never true
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue.hashCode(), seedsS[i], widthS);
+                if (exactHash) {
+                    hashes[i] = exactHashMap.get(attrValue);
+                } else {
+                    hashes[i] = mix(attrValue.hashCode(), seedsS[i], widthS);
+                }
             }
         } else {
             for (int i = 0; i < depth; i++) {
-                hashes[i] = mix(attrValue.hashCode(), seedsT[i], widthT);
+                if (exactHash) {
+                    hashes[i] = exactHashMap.get(attrValue);
+                } else {
+                    hashes[i] = mix(attrValue.hashCode(), seedsT[i], widthT);
+                }
             }
         }
     }
@@ -173,11 +204,11 @@ public class TWODCM {
     public int[] getCodomain(int attr, int predicate) {
         if (attr == attrS) {
 //            computeHashes(xxS, predicate, reusableHashesS);
-            computeHashes(predicate, reusableHashesS, true);
+            computeHashes(predicate, reusableHashesS, true, exactHashS);
 
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT, false);
+            computeHashes(predicate, reusableHashesT, false, exactHashT);
 
             return reusableHashesT;
         }
@@ -186,12 +217,10 @@ public class TWODCM {
     public int[] getCodomain(int attr, String predicate) {
         if (attr == attrS) {
 //            computeHashes(xxS, predicate, reusableHashesS);
-            computeHashes(predicate, reusableHashesS, true);
-
+            computeHashes(predicate, reusableHashesS, true, exactHashS, exactHashMapS);
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT, false);
-
+            computeHashes(predicate, reusableHashesT, false,exactHashT, exactHashMapT);
             return reusableHashesT;
         }
 
@@ -276,10 +305,10 @@ public class TWODCM {
 
     int[] getPredIdx(int predicate, int attr) {
         if (attrS == attr) {
-            computeHashes(predicate, reusableHashesS, true);
+            computeHashes(predicate, reusableHashesS, true, exactHashS);
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT, false);
+            computeHashes(predicate, reusableHashesT, false, exactHashT);
             return reusableHashesT;
         }
     }
@@ -287,11 +316,11 @@ public class TWODCM {
     int[] getPredIdx(String predicate, int attr) {
         if (attrS == attr) {
 //            computeHashes(xxS, predicate, reusableHashesS);
-            computeHashes(predicate, reusableHashesS, true);
+            computeHashes(predicate, reusableHashesS, true, exactHashS, exactHashMapS);
 
             return reusableHashesS;
         } else {
-            computeHashes(predicate, reusableHashesT, false);
+            computeHashes(predicate, reusableHashesT, false, exactHashT, exactHashMapT);
 
 //            computeHashes(xxT, predicate, reusableHashesT);
             return reusableHashesT;

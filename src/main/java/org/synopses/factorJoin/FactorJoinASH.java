@@ -560,10 +560,10 @@ public class FactorJoinASH {
         return ram;
     }
 
-    public int getDatasetMemory() {
-        int ram =0;
+    public long getDatasetMemory() {
+        long ram =0;
         for (aSH sketch : sketch.values()) {
-            ram += sketch.getN() * sketch.getNumColumns()*32;
+            ram += sketch.getN() * sketch.getNumColumns()*32L;
         }
         return ram;
 

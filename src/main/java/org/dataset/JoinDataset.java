@@ -17,6 +17,7 @@ public class JoinDataset {
     // Class contains the equivalent join keys, names of all tables,
     private final Query[] queries;
     public String[] tableNames;
+    public HashMap<String, Integer> tableSizes;
     public HashMap<String, Integer> numColumnsPerTable;
     public HashMap<String, String[]> attrMap;
     public HashMap<String, List<String>> jksPerTable = new HashMap<>();
@@ -131,7 +132,10 @@ public class JoinDataset {
         tableNames = new String[tableNamesList.size()];
         numColumnsPerTable = new HashMap<>();
         attrMap = new HashMap<>();
+        tableSizes = new HashMap<>();
         String columnQuery = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name=?";
+
+
         String columnNamesQuery = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name=?";
         for (int i = 0; i < tableNamesList.size(); i++) {
             tableNames[i] = tableNamesList.get(i);
@@ -160,6 +164,14 @@ public class JoinDataset {
                             tableNames[i],
                             attrs.toArray(new String[0])
                     );
+                }
+            }
+            String NQuery = "SELECT COUNT(*) FROM " + tableNames[i];
+            try (PreparedStatement stmt = con.prepareStatement(NQuery)) {
+                try (ResultSet res = stmt.executeQuery()) {
+                    if (res.next()) {
+                        tableSizes.put(tableNames[i], res.getInt(1));
+                    }
                 }
             }
         }

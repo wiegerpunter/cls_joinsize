@@ -13,6 +13,9 @@ import org.synopses.factorJoin.FactorJoinRS;
 import org.utils.Config;
 
 import java.io.*;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -35,11 +38,20 @@ public class RunJoinExperiment {
 //            rsj.ingestData(d, con);
 //            queryRS(rsj);
 //        }
+        HashMap<String, Buckets> globalJoinKeyBins = readJoinKeyBins(config.binPath, config.joinWidth, d.globalColToJoinKey);
+
+
         HashMap<String, Integer> joinKeyWidthMap = new HashMap<>();
         for (String jk : d.globalJoinKeyToTableColumn.keySet()) {
-            joinKeyWidthMap.put(jk, config.joinWidth);
+            joinKeyWidthMap.put(jk, globalJoinKeyBins.get(jk).nbins);
         }
-        HashMap<String, HashMap<String, Integer>> widthMap = readWidthMaps(config.cardinalityMapPath, joinKeyWidthMap, config.maxLocalWidth);
+        HashMap<String, HashMap<String, HashMap<String, Integer>>> exactHashMap = new HashMap<>();
+        HashMap<String, HashMap<String,Boolean>> exactHashable = new HashMap<>();
+        HashMap<String, HashMap<String, Integer>> widthMap = readWidthMaps(config.cardinalityMapPath, joinKeyWidthMap, exactHashable,
+                config.maxLocalWidth);
+
+
+        setExactHashMaps(exactHashable, exactHashMap);
 
         HashMap<String, HashMap<String, List<String>>> hhValuesMaps = null;
         if (config.sepHHs) {
@@ -48,26 +60,192 @@ public class RunJoinExperiment {
         long ram=0;
         for (int j = 0; j < config.num_rows.length; j++) {
             ram=0;
-            CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap,
+            CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap, exactHashable, exactHashMap,
                     joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
             long ingestTime = cmj.initialize(con);
             queryCM(cmj, ingestTime);
             ram +=  cmj.getMemory();
         }
-
-//        long ram = 52415744;
+//
+//        ram = 38417952;// 43539456;
 //        long ram = 8000000;
-        HashMap<String, Buckets> globalJoinKeyBins = readJoinKeyBins(config.binPath, config.joinWidth, d.globalColToJoinKey);
 //        HashMap<String, Integer> parMap = getParMap(ram, d.attrMap);
 //        FactorJoinRS fj = new FactorJoinRS(d, joinKeyWidthMap, parMap, d.attrMap, config.seed, globalJoinKeyBins);
 //        long ingestTime = fj.ingest(con);
 //        queryFJ(fj, ingestTime);
         double ingestBuffer = 0.1;
-        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer);
+        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.tableSizes, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer);
         FactorJoinASH fj = new FactorJoinASH(d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
         long ingestTime = fj.ingest(con);
         queryFJ(fj, ingestTime);
 
+    }
+
+    private void setExactHashMaps(
+            HashMap<String, HashMap<String, Boolean>> exactHashable,
+            HashMap<String, HashMap<String, HashMap<String, Integer>>> exactHashMap) {
+
+        // One shared value -> integer mapping per global join key.
+        HashMap<String, HashMap<String, Integer>> globalJoinKeyMaps =
+                new HashMap<>();
+
+        /*
+         * First construct shared mappings for exact-hashable join keys.
+         */
+        for (Map.Entry<String, Map<String, String>> joinEntry
+                : d.globalJoinKeyToTableColumn.entrySet()) {
+
+            String globalJoinKey = joinEntry.getKey();   // e.g. J0
+            Map<String, String> tableColumns = joinEntry.getValue();
+
+            /*
+             * Determine whether this global join key should be exact-hashed.
+             * We assume exactHashable stores J0/J1/... as the logical key.
+             */
+            boolean shouldExactHash = false;
+
+            for (String table : tableColumns.keySet()) {
+                HashMap<String, Boolean> tableExact = exactHashable.get(table);
+
+                if (tableExact != null &&
+                        Boolean.TRUE.equals(tableExact.get(globalJoinKey))) {
+                    shouldExactHash = true;
+                    break;
+                }
+            }
+
+            if (!shouldExactHash) {
+                continue;
+            }
+
+            HashMap<String, Integer> sharedMap = new HashMap<>();
+
+            /*
+             * Collect the union of distinct values from every physical
+             * column belonging to this global join key.
+             */
+            for (Map.Entry<String, String> tableColumn : tableColumns.entrySet()) {
+
+                String table = tableColumn.getKey();
+                String column = tableColumn.getValue();
+
+                String query =
+                        "SELECT DISTINCT " + quoteIdentifier(column) +
+                                " FROM " + quoteIdentifier(table);
+
+                try (Statement stmt = con.createStatement();
+                     ResultSet rs = stmt.executeQuery(query)) {
+
+                    while (rs.next()) {
+                        String value = rs.getString(1);
+
+                        if (!sharedMap.containsKey(value)) {
+                            sharedMap.put(value, sharedMap.size());
+                        }
+                    }
+
+                } catch (SQLException e) {
+                    throw new RuntimeException(
+                            "Failed to construct exact hash map for join key "
+                                    + globalJoinKey
+                                    + " from " + table + "." + column,
+                            e
+                    );
+                }
+            }
+
+            globalJoinKeyMaps.put(globalJoinKey, sharedMap);
+        }
+
+        /*
+         * Now build the per-table maps.
+         */
+        for (String table : d.tableNames) {
+
+            HashMap<String, Boolean> tableExact = exactHashable.get(table);
+
+            if (tableExact == null || tableExact.isEmpty()) {
+                continue;
+            }
+
+            HashMap<String, HashMap<String, Integer>> tableMap =
+                    new HashMap<>();
+
+            for (Map.Entry<String, Boolean> entry : tableExact.entrySet()) {
+
+                if (!Boolean.TRUE.equals(entry.getValue())) {
+                    continue;
+                }
+
+                String logicalColumn = entry.getKey();
+
+                /*
+                 * Case 1: this is a global join key such as J0.
+                 */
+                Map<String, String> joinKeyColumns =
+                        d.globalJoinKeyToTableColumn.get(logicalColumn);
+
+                if (joinKeyColumns != null && joinKeyColumns.containsKey(table)) {
+
+                    String physicalColumn = joinKeyColumns.get(table);
+
+                    HashMap<String, Integer> sharedMap =
+                            globalJoinKeyMaps.get(logicalColumn);
+
+                    if (sharedMap == null) {
+                        throw new IllegalStateException(
+                                "No shared exact mapping found for join key "
+                                        + logicalColumn
+                        );
+                    }
+
+                    /*
+                     * Same map object is intentionally reused across tables.
+                     */
+                    tableMap.put(physicalColumn, sharedMap);
+
+                    continue;
+                }
+
+                /*
+                 * Case 2: ordinary non-join column.
+                 * Its mapping only needs to be consistent within this table.
+                 */
+                String physicalColumn = logicalColumn;
+
+                HashMap<String, Integer> valueMap = new HashMap<>();
+
+                String query =
+                        "SELECT DISTINCT " + quoteIdentifier(physicalColumn) +
+                                " FROM " + quoteIdentifier(table);
+
+                try (Statement stmt = con.createStatement();
+                     ResultSet rs = stmt.executeQuery(query)) {
+
+                    while (rs.next()) {
+                        String value = rs.getString(1);
+
+                        if (!valueMap.containsKey(value)) {
+                            valueMap.put(value, valueMap.size());
+                        }
+                    }
+
+                } catch (SQLException e) {
+                    throw new RuntimeException(
+                            "Failed to construct exact hash map for "
+                                    + table + "." + physicalColumn,
+                            e
+                    );
+                }
+
+                tableMap.put(physicalColumn, valueMap);
+            }
+
+            exactHashMap.put(table, tableMap);
+        }
+    }
+    private String quoteIdentifier(String identifier) {
+        return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
     private HashMap<String, Integer> getParMap(long ram, HashMap<String, String[]> attrMap) {
@@ -94,40 +272,315 @@ public class RunJoinExperiment {
         return parMap;
     }
 
-    private HashMap<String, int[]> getParMapASH(long ram, HashMap<String, String[]> attrMap,
+    private HashMap<String, int[]> getParMapASH(long ram, HashMap<String, Integer> tableSizes, HashMap<String, String[]> attrMap,
                                                   HashMap<String, List<String>> jksPerTable,
                                                 HashMap<String, Buckets> globalJoinKeyBins,
                                                   double ingestBuffer) {
-        int num_tables = attrMap.size();
-
-        if (num_tables == 0) {
-            return null;
-        }
-
-        // One sampled tuple per table costs 4 bytes per column.
-        int bytes_per_tuple =0;
-        for (String tableName: attrMap.keySet()){
-            int numJoinKeys = 0;
-            if (!jksPerTable.getOrDefault(tableName,new ArrayList<>()).isEmpty()){
-                numJoinKeys = jksPerTable.get(tableName).size();
-            }
-            bytes_per_tuple += 32 * (attrMap.get(tableName).length + numJoinKeys) + 5 * 64 + 2 *32;
-        }
-
-        // Same number of tuples for every table.
-        int samples_per_table = (int) ram / bytes_per_tuple;
-//        int bufferSize = (int) Math.max((ingestBuffer * samples_per_table), 1);
-        int bufferSize = (int) Math.max(1, 8000000/bytes_per_tuple);
-        if (bufferSize>= samples_per_table) {
-            bufferSize = 1;
-        }
-        samples_per_table = samples_per_table - bufferSize;
         HashMap<String, int[]> parMap = new HashMap<>();
 
-        for (String t : attrMap.keySet()) {
-            parMap.put(t, new int[]{samples_per_table, bufferSize});
+        if (attrMap.isEmpty()) {
+            return parMap;
         }
+
+        HashMap<String, Long> tupleCost = new HashMap<>();
+
+        for (String table : attrMap.keySet()) {
+
+            int numJoinKeys = jksPerTable
+                    .getOrDefault(table, Collections.emptyList())
+                    .size();
+
+            long cost =
+                    32L * (attrMap.get(table).length + numJoinKeys)
+                            + 5L * 64L
+                            + 2L * 32L;
+
+            tupleCost.put(table, cost);
+        }
+
+        HashSet<String> remaining =
+                new HashSet<>(attrMap.keySet());
+
+        HashMap<String, Integer> sampleSizes =
+                new HashMap<>();
+
+        HashSet<String> fullySampled =
+                new HashSet<>();
+
+        long remainingRam = ram;
+
+        /*
+         * Repeatedly give every remaining table an equal RAM share.
+         * Tables whose complete contents fit in that share are removed
+         * and their unused RAM becomes available to the other tables.
+         */
+        while (!remaining.isEmpty()) {
+
+            long ramPerTable =
+                    remainingRam / remaining.size();
+
+            HashSet<String> completed =
+                    new HashSet<>();
+
+            for (String table : remaining) {
+
+                long fullTableRam =
+                        tupleCost.get(table)
+                                * (long) tableSizes.get(table);
+
+                if (fullTableRam <= ramPerTable) {
+
+                    sampleSizes.put(
+                            table,
+                            tableSizes.get(table)
+                    );
+
+                    fullySampled.add(table);
+                    completed.add(table);
+
+                    /*
+                     * Only the RAM actually used by the full table is
+                     * consumed. The unused part of its share remains
+                     * available.
+                     */
+                    remainingRam -= fullTableRam;
+                }
+            }
+
+            if (completed.isEmpty()) {
+                break;
+            }
+
+            remaining.removeAll(completed);
+        }
+
+        /*
+         * Allocate the remaining RAM equally across all remaining
+         * (partially sampled) tables.
+         */
+        if (!remaining.isEmpty()) {
+
+            /*
+             * Reserve one tuple for the reservoir/buffer of each
+             * partially sampled table.
+             */
+            long bufferRam = 0L;
+            long totalTupleCost = 0L;
+            for (String table : remaining) {
+                totalTupleCost+= tupleCost.get(table);
+                bufferRam += 100*tupleCost.get(table);
+            }
+
+            long samplingRam =
+                    Math.max(0L, remainingRam - bufferRam);
+
+//            long ramPerTable =
+//                    samplingRam / remaining.size();
+            long samplesPerTable = samplingRam/totalTupleCost;
+            for (String table : remaining) {
+
+//                long cost = tupleCost.get(table);
+//                int N = tableSizes.get(table);
+
+//                int samples = (int) Math.min(
+//                        N,
+//                        ramPerTable / cost
+//                );
+
+                sampleSizes.put(table, (int) samplesPerTable);
+            }
+        }
+
+        /*
+         * Construct final map.
+         */
+        for (String table : attrMap.keySet()) {
+
+            int samples =
+                    sampleSizes.getOrDefault(table, 0);
+
+            int bufferSize = 100;
+
+            /*
+             * For a fully sampled table, bufferSize=1 but it represents
+             * no additional reserved sampling memory.
+             */
+            if (samples < bufferSize) { // completely sampled table.
+                parMap.put(
+                        table,
+                        new int[]{samples, 1}
+                );
+            } else {
+                parMap.put(
+                    table,
+                    new int[]{samples, bufferSize}
+            );}
+
+        }
+
         return parMap;
+
+//        HashMap<String, int[]> parMap = new HashMap<>();
+//        if (attrMap.isEmpty()) {
+//            return null;
+//        }
+//
+//        HashMap<String, Long> tupleCost = new HashMap<>();
+//
+//        long costOneTuplePerTable = 0;
+//
+//        for (String table : attrMap.keySet()) {
+//
+//            int numJoinKeys = jksPerTable
+//                    .getOrDefault(table, Collections.emptyList())
+//                    .size();
+//
+//            long cost =
+//                    32L * (attrMap.get(table).length + numJoinKeys)
+//                            + 5L * 64
+//                            + 2L * 32;
+//
+//            tupleCost.put(table, cost);
+//            costOneTuplePerTable += cost;
+//        }
+//
+//        int bufferSize = (int) Math.max(
+//                1L,
+//                8_000_000L / costOneTuplePerTable
+//        );
+//
+//        long bufferRam = bufferSize * costOneTuplePerTable;
+//
+//        // Do not reserve more RAM than we actually have.
+//        if (bufferRam >= ram) {
+//            bufferSize = 1;
+//            bufferRam = costOneTuplePerTable;
+//        }
+//
+//        long remainingRam = Math.max(0L, ram - bufferRam);
+//
+//        HashSet<String> remainingTables = new HashSet<>(attrMap.keySet());
+//
+//        HashMap<String, Integer> sampleSizes = new HashMap<>();
+//
+//        while (!remainingTables.isEmpty() && remainingRam > 0) {
+//
+//            double totalWeight = 0.0;
+//            double totalCost = 0.0;
+//            for (String table : remainingTables) {
+//                long N = tableSizes.get(table);
+//                long cost = tupleCost.get(table);
+//                totalCost += (double) cost;
+//                totalWeight += (double) N * cost;
+//            }
+//
+//            if (totalWeight == 0.0) {
+//                break;
+//            }
+//
+//            boolean tableCompleted = false;
+//
+//            /*
+//             * First determine whether any table can be sampled completely
+//             * under the current proportional allocation.
+//             */
+//            ArrayList<String> completedTables = new ArrayList<>();
+//
+//            for (String table : remainingTables) {
+//
+//                int N = tableSizes.get(table);
+//                long cost = tupleCost.get(table);
+//
+//                double weight = (double) N * cost;
+//                long allocatedRam =
+//                        (long) (remainingRam * (cost / totalCost));
+//
+//                long fullTableRam = (long) N * cost;
+//
+//                if (allocatedRam >= fullTableRam) {
+//
+//                    sampleSizes.put(table, N);
+//
+//                    remainingRam -= fullTableRam;
+//                    completedTables.add(table);
+//
+//                    tableCompleted = true;
+//                }
+//            }
+//
+//            /*
+//             * If one or more tables were saturated, remove them and
+//             * recompute the proportional allocation for the remainder.
+//             */
+//            if (tableCompleted) {
+//                completedTables.forEach(remainingTables::remove);
+//                continue;
+//            }
+//
+//            /*
+//             * No table can be fully sampled. The proportional allocation
+//             * is therefore final.
+//             */
+//            for (String table : remainingTables) {
+//
+//                int N = tableSizes.get(table);
+//                long cost = tupleCost.get(table);
+//
+//                double weight = (double) N * cost;
+//                long allocatedRam =
+//                        (long) (remainingRam * (weight / totalWeight));
+//
+//                int samples = (int) Math.min(
+//                        N,
+//                        allocatedRam / cost
+//                );
+//
+//                sampleSizes.put(table, samples);
+//            }
+//
+//            break;
+//        }
+//
+//        /*
+//         * Tables may receive zero samples if the RAM budget is extremely
+//         * small.
+//         */
+//        for (String table : attrMap.keySet()) {
+//
+//            int samples = sampleSizes.getOrDefault(table, 0);
+//
+//            parMap.put(
+//                    table,
+//                    new int[]{samples, bufferSize}
+//            );
+//        }
+//
+//        return parMap;
+//        // One sampled tuple per table costs 4 bytes per column.
+//        int bytes_per_tuple =0;
+//        for (String tableName: attrMap.keySet()){
+//            int N = tableSizes.get(tableName);
+//            int numJoinKeys = 0;
+//            if (!jksPerTable.getOrDefault(tableName,new ArrayList<>()).isEmpty()){
+//                numJoinKeys = jksPerTable.get(tableName).size();
+//            }
+//            bytes_per_tuple += 32 * (attrMap.get(tableName).length + numJoinKeys) + 5 * 64 + 2 *32;
+//        }
+//
+//        // Same number of tuples for every table.
+//        int samples_per_table = (int) ram / bytes_per_tuple;
+////        int bufferSize = (int) Math.max((ingestBuffer * samples_per_table), 1);
+//        int bufferSize = (int) Math.max(1, 8000000/bytes_per_tuple);
+//        if (bufferSize>= samples_per_table) {
+//            bufferSize = 1;
+//        }
+//        samples_per_table = samples_per_table - bufferSize;
+//        HashMap<String, int[]> parMap = new HashMap<>();
+//
+//        for (String t : attrMap.keySet()) {
+//            parMap.put(t, new int[]{samples_per_table, bufferSize});
+//        }
+//        return parMap;
     }
 
     private static int getNumColumns(HashMap<String, String[]> attrMap, int numColumns) {
@@ -139,7 +592,10 @@ public class RunJoinExperiment {
         return numColumns;
     }
 
-    private HashMap<String, HashMap<String, Integer>> readWidthMaps(String cardinalityMapPath, HashMap<String, Integer> joinKeyWidthMap, int maxLocalWidth) {
+    private HashMap<String, HashMap<String, Integer>> readWidthMaps(String cardinalityMapPath,
+                                                                    HashMap<String, Integer> joinKeyWidthMap,
+                                                                    HashMap<String, HashMap<String,Boolean>> exactHashable,
+                                                                    int maxLocalWidth) {
         HashMap<String, HashMap<String, Integer>> cardMap = readCardMaps(cardinalityMapPath);
         HashMap<String, HashMap<String, Integer>> widthMap = new HashMap<>();
 
@@ -150,11 +606,23 @@ public class RunJoinExperiment {
                 if (joinKeyWidthMap.containsKey(colName)) {
                     widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(orgColName, joinKeyWidthMap.get(colName));
                     System.out.println("Table " + table + " column " + orgColName + " width: " +joinKeyWidthMap.get(colName));
+                    if (joinKeyWidthMap.get(colName) <= 30) {
+                        HashMap<String, Boolean> exH= exactHashable.computeIfAbsent(table, k->new HashMap<>());
+                        exH.put(colName, true);
+                    }
                 } else {
                     int card = cardMap.get(table).get(colName);
+                    if (card <= Math.min(maxLocalWidth, 30)) {
+                        HashMap<String, Boolean> exH= exactHashable.computeIfAbsent(table, k->new HashMap<>());
+                        exH.put(colName, true);
+                        widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(colName,card);
+                        System.out.println("Table " + table + " column " + colName + " width: " +card);
 
-                    widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(colName,Math.min(maxLocalWidth, 5*card));
-                    System.out.println("Table " + table + " column " + colName + " width: " +Math.min(maxLocalWidth, 5*card));
+                    } else {
+                        widthMap.computeIfAbsent(table, k -> new HashMap<>()).put(colName,Math.min(maxLocalWidth, 5*card));
+                        System.out.println("Table " + table + " column " + colName + " width: " +Math.min(maxLocalWidth, 5*card));
+                    }
+
 
                 }
             }
@@ -193,6 +661,7 @@ public class RunJoinExperiment {
                 for (int i = 0; i < domain; i++) {
                     bins[i] = min + i+1;
                 }
+                this.nbins = (int) domain + 1;
             } else {
                 binSize = domain /nbins;
                 for (int i = 0; i < nbins; i++) {
@@ -436,7 +905,7 @@ public class RunJoinExperiment {
     }
 
     private void writeResults(String setting,String[] queryName, double[] estimates, double[] exact,
-                              double[] errors, int d, int ram, int datasetMemory,
+                              double[] errors, int d, int ram, long datasetMemory,
                               long ingestTime, double[][] tableNs, String[][] tableNames, int[][] tableJoinKeys, int[] numTables,
                               List[] joins, List[] selections, long[] queryTimes) throws Exception {
 
