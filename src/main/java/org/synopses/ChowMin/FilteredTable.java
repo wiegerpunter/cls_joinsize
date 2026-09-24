@@ -89,6 +89,39 @@ public class FilteredTable {
         }
     }
 
+    static class Factor {
+        // Global join-key IDs occurring in this factor.
+        final int[] vars;
+
+        // Number of buckets for each variable.
+        final int[] widths;
+
+        // Row-major / mixed-radix storage.
+        final double[] values;
+
+        Factor(int[] vars, int[] widths, double[] values) {
+            this.vars = vars;
+            this.widths = widths;
+            this.values = values;
+        }
+
+        int size() {
+            return values.length;
+        }
+
+        int index(int[] assignment) {
+            int idx = 0;
+            for (int i = 0; i < vars.length; i++) {
+                idx = idx * widths[i] + assignment[vars[i]];
+            }
+            return idx;
+        }
+    }
+
+
+
+
+
     private SynopsisQuery.ColumnKey getPK(Table t, SynopsisQuery.ColumnKey c) {
 
         if (c.column().equals("Id") || c.column().equals("id")) {

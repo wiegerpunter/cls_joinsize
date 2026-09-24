@@ -65,20 +65,20 @@ public class FilteredTableASH {
         }
 
         aSH.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
-        if (s.count< s.maxSize) {
-            System.out.println("Table " + t.getAlias().getName() + " has N=" + s.count  + ", but uses " + s.maxSize + " samples with size: " +s.size);
+        if (s.count < s.maxSize) {
+            System.out.println("Table " + t.getAlias().getName() + " has N=" + s.count + ", but uses " + s.maxSize + " samples with size: " + s.size);
         } else {
-            System.out.println("Table " + t.getAlias().getName() + " has sampling rate " + (double) s.maxSize / s.count  + " with N= " + s.count + " samples with size: " +s.size);
+            System.out.println("Table " + t.getAlias().getName() + " has sampling rate " + (double) s.maxSize / s.count + " with N= " + s.count + " samples with size: " + s.size);
         }
         for (int idx = 0; idx < total; idx++) {
             int[] buckets = decodeIdx(idx, joinKeyWidths);
             HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
-            for (int i = 0; i < unqColumns.size();i++) {
+            for (int i = 0; i < unqColumns.size(); i++) {
                 bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
             }
-            double[] raw =  s.queryBucketAssignment(f.record(), bucketPerAttribute, f.active(), pkHasPred);
+            double[] raw = s.queryBucketAssignment(f.record(), bucketPerAttribute, f.active(), pkHasPred);
             view[idx] = raw;
-            sumView +=raw[0];
+            sumView += raw[0];
         }
 
         if (isPrimaryKeyTable) {
@@ -87,7 +87,7 @@ public class FilteredTableASH {
 //                if (!isPK(s.columns[0])) {
 //                    throw new RuntimeException("Columns[0] is " + s.columns[0]);
 //                }
-                double raw =  s.queryBucketMarginal(0, buckets[0]);//sketches[s.sketch_idx_first(0)].marginalOneRep(j, 0, buckets[0]);
+                double raw = s.queryBucketMarginal(0, buckets[0]);//sketches[s.sketch_idx_first(0)].marginalOneRep(j, 0, buckets[0]);
                 pkView[idx] = raw;
             }
         }

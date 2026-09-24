@@ -66,7 +66,7 @@ public class RunJoinExperiment {
             queryCM(cmj, ingestTime);
             ram +=  cmj.getMemory();
         }
-//
+
 //        ram = 38417952;// 43539456;
 //        long ram = 8000000;
 //        HashMap<String, Integer> parMap = getParMap(ram, d.attrMap);
@@ -606,7 +606,7 @@ public class RunJoinExperiment {
                 if (joinKeyWidthMap.containsKey(colName)) {
                     widthMap.computeIfAbsent(table, k-> new HashMap<>()).put(orgColName, joinKeyWidthMap.get(colName));
                     System.out.println("Table " + table + " column " + orgColName + " width: " +joinKeyWidthMap.get(colName));
-                    if (joinKeyWidthMap.get(colName) <= 30) {
+                    if (joinKeyWidthMap.get(colName) < Math.min(config.joinWidth, 30)) {
                         HashMap<String, Boolean> exH= exactHashable.computeIfAbsent(table, k->new HashMap<>());
                         exH.put(colName, true);
                     }

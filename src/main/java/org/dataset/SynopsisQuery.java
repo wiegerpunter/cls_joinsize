@@ -20,6 +20,7 @@ public class SynopsisQuery {
     public HashMap<String, String> aliasMap;
     public int numJoinKeys;
     public HashMap<String, Integer> jkToBucket;
+    public HashMap<Integer, Integer> bucketToJK;
 
     public void setGlobalJoinKeysInQuery(Map<ColumnKey, String> globalColToJoinKey) {
         globalJoinKeysInQuerySet = new HashSet<>();
@@ -33,9 +34,11 @@ public class SynopsisQuery {
         }
         numJoinKeys = globalJoinKeysInQuerySet.size();
         jkToBucket = new HashMap<>();
+        bucketToJK = new HashMap<>();
         int i =0;
         for (String jk : globalJoinKeysInQuerySet) {
             jkToBucket.put(jk, i);
+            bucketToJK.put(i, Integer.parseInt(jk.substring(1)));
             i++;
         }
     }

@@ -20,6 +20,7 @@ public class CMJoin {
     int depth;
     public HashMap<String, HashMap<String, Integer>> widthMap;
     HashMap<String, Integer> joinKeyWidthMap;
+    int[] globalWidths;
     public String setting = "CMJoin";
     JoinDataset jd;
 
@@ -35,6 +36,11 @@ public class CMJoin {
         this.depth = depth;
         this.widthMap = widthMap;
         this.joinKeyWidthMap = joinKeyWidthMap;
+        this.globalWidths = new int[joinKeyWidthMap.size()];
+        for (String jk : joinKeyWidthMap.keySet()) {
+            int j = Integer.parseInt(jk.substring(1));
+            globalWidths[j] = joinKeyWidthMap.get(jk);
+        }
         this.jd = jd;
         HashMap<String, Integer> numColumnsPerTable = jd.numColumnsPerTable;
         HashMap<String, List<String>> hhValuesMapsTable = null;
@@ -97,8 +103,12 @@ public class CMJoin {
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-
-            estimates[j] = estimateJoinSize(synQuery, filtered, joinKeys);
+            List<FilteredTable.Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK);
+            estimates[j] = variableElimination(factors, globalWidths.length, globalWidths);
+//            double oldEst =  estimateJoinSize(synQuery, filtered, joinKeys);
+//            if (Math.abs(estimates[j] - oldEst) >=1000) {
+//               System.out.println("Var EL not equal to old estimate");
+//            }
             estToFilteredMap.put(estimates[j], filtered);
         }
         Arrays.sort(estimates);
@@ -250,6 +260,9 @@ public class CMJoin {
 //        }
 //        return estimate;
 //    }
+
+
+
 
     private double estimateJoinSize(
             SynopsisQuery query,
@@ -498,6 +511,536 @@ public class CMJoin {
         }
 
         return estimate;
+    }
+
+    private List<FilteredTable.Factor> buildFactors(
+            Map<String, FilteredTable> filtered,
+            int[] globalWidths,
+            HashMap<Integer, Integer> bucketToJK) {
+
+        List<FilteredTable.Factor> factors =
+                new ArrayList<>();
+
+        /*
+         * First add the table factors.
+         */
+        for (FilteredTable ft : filtered.values()) {
+
+            factors.add(
+                    makeTableFactor(
+                            ft,
+                            globalWidths,
+                            bucketToJK));
+        }
+
+        for (FilteredTable ft : filtered.values()) {
+
+            for (int i = 0;
+                 i < ft.globalJoinKeyIdx.length;
+                 i++) {
+
+                /*
+                 * Nothing to correct on the PK side.
+                 */
+                if (ft.pkJoinKey[i]) {
+                    continue;
+                }
+
+                int jk =
+                        ft.globalJoinKeyIdx[i];
+
+                /*
+                 * Find the PK relation for this global join key.
+                 */
+                FilteredTable pkTable = null;
+
+                for (FilteredTable candidate : filtered.values()) {
+
+                    for (int k = 0;
+                         k < candidate.globalJoinKeyIdx.length;
+                         k++) {
+
+                        if (candidate.globalJoinKeyIdx[k] == jk
+                                && candidate.pkJoinKey[k]) {
+
+                            pkTable = candidate;
+                            break;
+                        }
+                    }
+
+                    if (pkTable != null) {
+                        break;
+                    }
+                }
+
+                if (pkTable == null) {
+                    continue;
+//                    throw new IllegalStateException(
+//                            "No PK side found for join key " + jk);
+                }
+
+                int width =
+                        globalWidths[bucketToJK.get(jk)];
+
+                factors.add(
+                        makeInversePKFactor(
+                                pkTable,
+                                bucketToJK.get(jk),
+                                width));
+            }
+        }
+
+
+        return factors;
+    }
+
+    private FilteredTable.Factor makeTableFactor(
+            FilteredTable ft,
+            int[] globalWidths,
+            HashMap<Integer, Integer> bucketToJK) {
+
+        int[] vars = ft.globalJoinKeyIdx.clone();
+        for (int i = 0; i < vars.length; i++) {
+            vars[i] = bucketToJK.get(vars[i]);
+        }
+        int[] widths = ft.joinKeyWidths.clone();
+
+        double[] values = new double[ft.view.length];
+
+        for (int i = 0; i < ft.view.length; i++) {
+            /*
+             * If the table has a PK predicate, view[][1] is the
+             * predicate-filtered count. Otherwise view[][0] is the
+             * appropriate local count.
+             */
+            if (ft.pkHasPred && ft.view[i].length > 1) {
+                values[i] = ft.view[i][1];
+            } else {
+                values[i] = ft.view[i][0];
+            }
+        }
+
+        return new FilteredTable.Factor(vars, widths, values);
+    }
+
+    private FilteredTable.Factor makeCountFactor(
+            FilteredTable ft,
+            int[] globalWidths) {
+
+        int k = ft.globalJoinKeyIdx.length;
+
+        int[] vars = ft.globalJoinKeyIdx.clone();
+        int[] widths = ft.joinKeyWidths.clone();
+
+        double[] values = new double[ft.view.length];
+
+        for (int i = 0; i < ft.view.length; i++) {
+            values[i] = ft.view[i][0];
+        }
+
+        return new FilteredTable.Factor(vars, widths, values);
+    }
+
+    private FilteredTable.Factor makeSelectedFactor(
+            FilteredTable ft) {
+
+        int k = ft.globalJoinKeyIdx.length;
+
+        int[] vars = ft.globalJoinKeyIdx.clone();
+        int[] widths = ft.joinKeyWidths.clone();
+
+        double[] values = new double[ft.view.length];
+
+        for (int i = 0; i < ft.view.length; i++) {
+            values[i] = ft.view[i][1];
+        }
+
+        return new FilteredTable.Factor(vars, widths, values);
+    }
+
+
+    private FilteredTable.Factor makePKFactor(
+            FilteredTable ft,
+            int globalJK,
+            int width) {
+
+        double[] values = new double[width];
+
+        for (int b = 0; b < width; b++) {
+            values[b] = getMarginal(ft, b);
+        }
+
+        return new FilteredTable.Factor(
+                new int[]{globalJK},
+                new int[]{width},
+                values
+        );
+    }
+
+    private FilteredTable.Factor makeInversePKFactor(
+            FilteredTable ft,
+            int globalJK,
+            int width) {
+
+        double[] values = new double[width];
+
+        for (int b = 0; b < width; b++) {
+            double x = getMarginal(ft, b);
+
+            values[b] = x > 0.0 ? 1.0 / x : 0.0;
+        }
+
+        return new FilteredTable.Factor(
+                new int[]{globalJK},
+                new int[]{width},
+                values
+        );
+    }
+
+    private double variableElimination(
+            List<FilteredTable.Factor> factors,
+            int numVariables,
+            int[] globalWidths) {
+
+        List<FilteredTable.Factor> current =
+                new ArrayList<>(factors);
+
+        /*
+         * Choose an elimination order.
+         *
+         * For now use a greedy min-fill-ish ordering based on
+         * the number of variables introduced by eliminating a variable.
+         */
+        int[] order =
+                chooseEliminationOrder(
+                        current,
+                        numVariables, globalWidths);
+
+        for (int variable : order) {
+
+            List<FilteredTable.Factor> containing = new ArrayList<>();
+            List<FilteredTable.Factor> remaining = new ArrayList<>();
+
+            for (FilteredTable.Factor f : current) {
+                if (contains(f.vars, variable)) {
+                    containing.add(f);
+                } else {
+                    remaining.add(f);
+                }
+            }
+
+            if (containing.isEmpty()) {
+                continue;
+            }
+
+            FilteredTable.Factor product =
+                    multiplyFactors(
+                            containing,
+                            globalWidths);
+
+            FilteredTable.Factor eliminated =
+                    sumOut(
+                            product,
+                            variable);
+
+            remaining.add(eliminated);
+            current = remaining;
+        }
+
+        /*
+         * Everything should now be scalar.
+         */
+        double result = 1.0;
+
+        for (FilteredTable.Factor f : current) {
+            if (f.vars.length != 0) {
+                throw new IllegalStateException(
+                        "Variable elimination left non-scalar factor"
+                );
+            }
+
+            result *= f.values[0];
+        }
+
+        return result;
+    }
+
+    private FilteredTable.Factor multiplyFactors(
+            List<FilteredTable.Factor> factors,
+            int[] globalWidths) {
+
+        if (factors.isEmpty()) {
+            return new FilteredTable.Factor(
+                    new int[0],
+                    new int[0],
+                    new double[]{1.0}
+            );
+        }
+
+        if (factors.size() == 1) {
+            return factors.get(0);
+        }
+
+        /*
+         * Union of variables.
+         */
+        TreeSet<Integer> variableSet =
+                new TreeSet<>();
+
+        for (FilteredTable.Factor f : factors) {
+            for (int v : f.vars) {
+                variableSet.add(v);
+            }
+        }
+
+        int[] vars =
+                variableSet.stream()
+                        .mapToInt(Integer::intValue)
+                        .toArray();
+
+        int[] widths = new int[vars.length];
+
+        for (int i = 0; i < vars.length; i++) {
+            widths[i] = globalWidths[vars[i]];
+        }
+
+        int total = 1;
+
+        for (int width : widths) {
+            total *= width;
+        }
+
+        double[] result =
+                new double[total];
+
+        int[] assignment =
+                new int[globalWidths.length];
+
+        for (int idx = 0; idx < total; idx++) {
+
+            decodeLocalIndex(
+                    idx,
+                    vars,
+                    widths,
+                    assignment);
+
+            double value = 1.0;
+
+            for (FilteredTable.Factor f : factors) {
+                value *= f.values[f.index(assignment)];
+
+                if (value == 0.0) {
+                    break;
+                }
+            }
+
+            result[idx] = value;
+        }
+
+        return new FilteredTable.Factor(
+                vars,
+                widths,
+                result);
+    }
+
+    private void decodeLocalIndex(
+            int index,
+            int[] vars,
+            int[] widths,
+            int[] assignment) {
+
+        for (int i = vars.length - 1; i >= 0; i--) {
+            assignment[vars[i]] =
+                    index % widths[i];
+
+            index /= widths[i];
+        }
+    }
+
+    private FilteredTable.Factor sumOut(
+            FilteredTable.Factor factor,
+            int variable) {
+
+        int pos = -1;
+
+        for (int i = 0; i < factor.vars.length; i++) {
+            if (factor.vars[i] == variable) {
+                pos = i;
+                break;
+            }
+        }
+
+        if (pos < 0) {
+            return factor;
+        }
+
+        /*
+         * Variables remaining after elimination.
+         */
+        int[] newVars =
+                new int[factor.vars.length - 1];
+
+        int[] newWidths =
+                new int[factor.widths.length - 1];
+
+        int p = 0;
+
+        for (int i = 0; i < factor.vars.length; i++) {
+            if (i == pos) {
+                continue;
+            }
+
+            newVars[p] = factor.vars[i];
+            newWidths[p] = factor.widths[i];
+            p++;
+        }
+
+        int newSize = 1;
+
+        for (int width : newWidths) {
+            newSize *= width;
+        }
+
+        double[] result =
+                new double[newSize];
+
+        /*
+         * Scalar result.
+         */
+        if (newVars.length == 0) {
+
+            double sum = 0.0;
+
+            for (double value : factor.values) {
+                sum += value;
+            }
+
+            result[0] = sum;
+
+            return new FilteredTable.Factor(
+                    newVars,
+                    newWidths,
+                    result);
+        }
+
+        /*
+         * General case.
+         */
+        int[] assignment =
+                new int[findMaxVariable(factor) + 1];
+
+        int totalNew = result.length;
+
+        for (int idx = 0; idx < totalNew; idx++) {
+
+            decodeLocalIndex(
+                    idx,
+                    newVars,
+                    newWidths,
+                    assignment);
+
+            double sum = 0.0;
+
+            for (int b = 0;
+                 b < factor.widths[pos];
+                 b++) {
+
+                assignment[variable] = b;
+
+                sum += factor.values[
+                        factor.index(assignment)
+                        ];
+            }
+
+            result[idx] = sum;
+        }
+
+        return new FilteredTable.Factor(
+                newVars,
+                newWidths,
+                result);
+    }
+
+    private int findMaxVariable(FilteredTable.Factor f) {
+        int max = 0;
+
+        for (int v : f.vars) {
+            max = Math.max(max, v);
+        }
+
+        return max;
+    }
+
+    private boolean contains(
+            int[] values,
+            int value) {
+
+        for (int x : values) {
+            if (x == value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int[] chooseEliminationOrder(
+            List<FilteredTable.Factor> factors,
+            int numVariables,
+            int[] globalWidths) {
+
+        List<Integer> remaining =
+                new ArrayList<>();
+
+        for (int v = 0; v < numVariables; v++) {
+            remaining.add(v);
+        }
+
+        List<Integer> order =
+                new ArrayList<>();
+
+        while (!remaining.isEmpty()) {
+
+            int best = -1;
+            long bestCost = Long.MAX_VALUE;
+
+            for (int candidate : remaining) {
+
+                TreeSet<Integer> neighbors =
+                        new TreeSet<>();
+
+                for (FilteredTable.Factor f : factors) {
+
+                    if (!contains(f.vars, candidate)) {
+                        continue;
+                    }
+
+                    for (int v : f.vars) {
+                        if (v != candidate) {
+                            neighbors.add(v);
+                        }
+                    }
+                }
+
+                long cost = 1;
+
+                for (int v : neighbors) {
+                    cost *= globalWidths[v];
+                }
+
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    best = candidate;
+                }
+            }
+
+            order.add(best);
+            remaining.remove(Integer.valueOf(best));
+        }
+
+        return order.stream()
+                .mapToInt(Integer::intValue)
+                .toArray();
     }
 
 //    private boolean isPkForJoinKey(FilteredTable ft, String globalJK) {
