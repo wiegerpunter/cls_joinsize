@@ -70,7 +70,8 @@ public class CMJoin {
                     for (int col = 1; col <= numColumns; col++) {
                         rec[col - 1] = rs.getString(col);
                     }
-                    syn.addStringArr(rec);
+                    int sign = Integer.parseInt(rs.getString(numColumns+2));
+                    syn.addStringArr(rec, sign);
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);

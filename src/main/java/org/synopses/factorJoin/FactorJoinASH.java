@@ -79,7 +79,8 @@ public class FactorJoinASH {
                             }
                         }
                     }
-                    syn.addArr(rec);
+                    int sign = Integer.parseInt(rs.getString(numColumns+2));
+                    syn.ingestArr(rec, sign);
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);

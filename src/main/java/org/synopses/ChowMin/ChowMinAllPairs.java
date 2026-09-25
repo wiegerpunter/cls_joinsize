@@ -229,7 +229,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             int v = record[att];
             computeHashes(att, v, h, s);
         }
-        addToSketch(null);
+        addToSketch(null, 1);//always positive in single relation experiments on this code.
     }
 
     public int getTotalJoinAssignments(List<SynopsisQuery.ColumnKey> columns) {
@@ -270,16 +270,16 @@ public class ChowMinAllPairs extends AbstractSynopsis {
 
     }
 
-    public void addStringArr(String[] record) {
+    public void addStringArr(String[] record, int sign) {
         if (sepHHs)
-            addStringArrSepHHs(record);
+            addStringArrSepHHs(record, sign);
         else
-            addStringArrNotSepHHs(record);
+            addStringArrNotSepHHs(record, sign);
 
     }
 
-    public void addStringArrNotSepHHs(String[] record) {
-        N += 1;
+    public void addStringArrNotSepHHs(String[] record, int sign) {
+        N += sign;
         for (int att = 0; att < numAttributes; att++) {
             int[] h = hashes[att];
             int[] s = seeds[att];
@@ -289,10 +289,10 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                     new SynopsisQuery.ColumnKey(table,columns[att]),columns[att]),false),
                     exactHashes.getOrDefault(columns[att], null));
         }
-        addToSketch(null);
+        addToSketch(null, sign);
     }
 
-    public void addStringArrSepHHs(String[] record) {
+    public void addStringArrSepHHs(String[] record, int sign) {
         N += 1;
         boolean[] isHeavy = new boolean[numAttributes];
 
@@ -338,11 +338,11 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                 }
             }
         }
-        addToSketch(isHeavy);
+        addToSketch(isHeavy, sign);
     }
 
 
-    private void addToSketch(boolean[] isHeavy) {
+    private void addToSketch(boolean[] isHeavy, int sign) {
         for (int a1 = 0; a1 < numAttributes-1; a1++) { // summary for every pair in upper triangle
             for (int a2 = a1 + 1; a2 < numAttributes; a2++) {
                 if (isHeavy!= null && (isHeavy[a1] || isHeavy[a2])) {
@@ -355,7 +355,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                     if (ha1[j] == -1 || ha2[j] == -1) {
                         continue; // ignore null attribute values. Future version: don't make pairwise sketches with attributes that are all null.
                     }
-                    sketches[sid].CMR[sketches[sid].idx(j,ha1[j],ha2[j])] +=1;
+                    sketches[sid].CMR[sketches[sid].idx(j,ha1[j],ha2[j])] +=sign;
                 }
             }
         }

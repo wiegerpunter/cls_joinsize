@@ -67,7 +67,7 @@ public class RunJoinExperiment {
             ram +=  cmj.getMemory();
         }
 
-//        ram = 38417952;// 43539456;
+//        ram = 64642368;// 43539456;
 //        long ram = 8000000;
 //        HashMap<String, Integer> parMap = getParMap(ram, d.attrMap);
 //        FactorJoinRS fj = new FactorJoinRS(d, joinKeyWidthMap, parMap, d.attrMap, config.seed, globalJoinKeyBins);
@@ -869,9 +869,6 @@ public class RunJoinExperiment {
         List<EqualsTo>[] selections = new List[numQueries];
         for (int i = 0; i < numQueries; i++) {
             Query q = d.getQueries()[i];
-            if (q.getName().equals("q03.sql")) {
-                System.out.println("Debug");
-            }
             long start = System.currentTimeMillis();
             CMJoin.QueryEst qEst = cmj.query(q.syn_query);
             long end = System.currentTimeMillis();

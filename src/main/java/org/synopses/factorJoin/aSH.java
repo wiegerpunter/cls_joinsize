@@ -122,18 +122,8 @@ public class aSH {
 
     }
 
-    public void addArr(int[] record) {
-        ingest(record, 1);
-        count++;
-    }
-
-    public void delete(int[] r) {
-        ingest(r, -1);
-        count--;
-    }
-
-
-    public void ingest(int[] record, int sign) {
+    public void ingestArr(int[] record, int sign) {
+        count += sign;
         // add bin as extra column;
         HashMap<Integer, Integer> jkBins = new HashMap<>();
         for (int i = 0; i < record.length; i++) {
@@ -300,21 +290,21 @@ public class aSH {
             }
             if (match) {
                 // check if queryResultCount is not overflow of max int.
-                if (Integer.MAX_VALUE - queryResultCount < (int) (sketch.get(key)[0]) + sketch.get(key)[1]) {
-                    queryResultCount = Integer.MAX_VALUE;
-                    System.out.println("OVERFLOW IN ASH");
-                    break;
-                }
+//                if (Integer.MAX_VALUE - queryResultCount < (int) (sketch.get(key)[0]) + sketch.get(key)[1]) {
+//                    queryResultCount = Integer.MAX_VALUE;
+//                    System.out.println("OVERFLOW IN ASH");
+//                    break;
+//                }
                 queryResultCount += sketch.get(key)[0] + sketch.get(key)[1];
                 // sketch.get(key)[0] is c_i and sketch.get(key)[1] is tau_i
             }
             if (matchWOPredicates) {
                 // check if queryResultCount is not overflow of max int.
-                if (Integer.MAX_VALUE - unfilteredQueryResult < (int) (sketch.get(key)[0]) + sketch.get(key)[1]) {
-                    unfilteredQueryResult = Integer.MAX_VALUE;
-                    System.out.println("OVERFLOW IN ASH");
-                    break;
-                }
+//                if (Integer.MAX_VALUE - unfilteredQueryResult < (int) (sketch.get(key)[0]) + sketch.get(key)[1]) {
+//                    unfilteredQueryResult = Integer.MAX_VALUE;
+//                    System.out.println("OVERFLOW IN ASH");
+//                    break;
+//                }
                 unfilteredQueryResult += sketch.get(key)[0] + sketch.get(key)[1];
                 // sketch.get(key)[0] is c_i and sketch.get(key)[1] is tau_i
             }

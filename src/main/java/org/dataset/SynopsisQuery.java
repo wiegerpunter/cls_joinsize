@@ -2,6 +2,7 @@ package org.dataset;
 
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -132,6 +133,11 @@ public class SynopsisQuery {
                 if (left instanceof Column l && right instanceof Column r) {
                     // Equality join
                     joins.add(new SynopsisQuery.JoinPredicate(l, r));
+                } else if (isStreamPartPredicate(eq)) {
+                    // Synthetic benchmark predicate:
+                    // table.stream_part = 'R'
+                    // Ignore it for synopsis estimation.
+                    continue;
                 } else {
                     // Selection predicate
                     selections.add(eq);
@@ -140,6 +146,24 @@ public class SynopsisQuery {
             }
             // Skip: IN, LIKE, BETWEEN, >, <, etc.
         }
+    }
+
+    private boolean isStreamPartPredicate(EqualsTo eq) {
+        Expression left = eq.getLeftExpression();
+        Expression right = eq.getRightExpression();
+
+        return isStreamPartColumn(left) && isRLiteral(right)
+                || isStreamPartColumn(right) && isRLiteral(left);
+    }
+
+    private boolean isStreamPartColumn(Expression expr) {
+        return expr instanceof Column c
+                && c.getColumnName().equalsIgnoreCase("stream_part");
+    }
+
+    private boolean isRLiteral(Expression expr) {
+        return expr instanceof StringValue s
+                && s.getValue().equals("R");
     }
 
 

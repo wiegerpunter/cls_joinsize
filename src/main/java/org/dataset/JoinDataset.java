@@ -144,7 +144,7 @@ public class JoinDataset {
                 stmt.setString(1, tableNames[i]);
                 try (ResultSet res = stmt.executeQuery()) {
                     if (res.next()) {
-                        numColumnsPerTable.put(tableNames[i], res.getInt(1));
+                        numColumnsPerTable.put(tableNames[i], res.getInt(1) - 2);//ignore residu indication and sign
                     }
                 }
             }
@@ -155,8 +155,12 @@ public class JoinDataset {
                             new ArrayList<>();
 
                     while (res.next()) {
+                        String col = res.getString("column_name");
+                        if (col.equals("stream_part") || col.equals("op")){ //ignore residu indication and sign
+                            continue;
+                        }
                         attrs.add(
-                                res.getString("column_name")
+                                col
                         );
                     }
 
@@ -166,7 +170,7 @@ public class JoinDataset {
                     );
                 }
             }
-            String NQuery = "SELECT COUNT(*) FROM " + tableNames[i];
+            String NQuery = "SELECT COUNT(*) FROM " + tableNames[i] + " WHERE stream_part = 'R'";
             try (PreparedStatement stmt = con.prepareStatement(NQuery)) {
                 try (ResultSet res = stmt.executeQuery()) {
                     if (res.next()) {
