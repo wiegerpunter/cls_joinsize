@@ -1,13 +1,18 @@
 package org.synopses.ChowMin;
 
-public class AttributeDimensionOneRep {
-    int attribute;
-    int codomainSize;
-    int valuesPerCodomain; //[rows][1 .. w]
-
-    AttributeDimensionOneRep(int attribute, int codomain) {
-        this.attribute = attribute;
-        codomainSize = 1;
-        valuesPerCodomain = codomain;
+public record AttributeDimensionOneRep(int attribute, int valuesPerCodomain) {
+    public int getAttribute() {
+        return attribute;
     }
+    public int getValuesPerCodomain() {
+        return valuesPerCodomain;
+    }
+//    int attribute;
+//    int valuesPerCodomain; //[rows][1 .. w]
 }
+//    AttributeDimensionOneRep {
+//        this.attribute = attribute;
+//        codomainSize = 1;
+//        valuesPerCodomain = codomain;
+//    }
+

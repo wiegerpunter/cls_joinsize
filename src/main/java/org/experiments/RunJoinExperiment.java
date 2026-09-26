@@ -10,9 +10,11 @@ import org.synopses.ChowMin.CMJoin;
 import org.synopses.ChowMin.FilteredTable;
 import org.synopses.factorJoin.FactorJoinASH;
 import org.synopses.factorJoin.FactorJoinRS;
+import org.synopses.factorJoin.FilteredTableASH;
 import org.utils.Config;
 
 import java.io.*;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -23,8 +25,8 @@ public class RunJoinExperiment {
     Config config;
     DuckDBConnection con;
     JoinDataset d;
-    private final String folder = "/home/wieger/sandboxChowMin/resultsJoinSize/";
-    private final String CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
+    private final String folder;// = "/home/wieger/sandboxChowMin/resultsJoinSize/";
+    private final String CSV_FILE_NAME;// = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
 
     public RunJoinExperiment(Config config, JoinDataset d, DuckDBConnection con) throws Exception {
         this.config = config;
@@ -38,6 +40,9 @@ public class RunJoinExperiment {
 //            rsj.ingestData(d, con);
 //            queryRS(rsj);
 //        }
+
+        folder = config.outputFolder;//"/home/wieger/sandboxChowMin/resultsJoinSize/";
+        CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
         HashMap<String, Buckets> globalJoinKeyBins = readJoinKeyBins(config.binPath, config.joinWidth, d.globalColToJoinKey);
 
 
@@ -63,6 +68,8 @@ public class RunJoinExperiment {
             CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap, exactHashable, exactHashMap,
                     joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
             long ingestTime = cmj.initialize(con);
+            System.out.println("Done with CLS ingestion");
+            con.close();
             queryCM(cmj, ingestTime);
             ram +=  cmj.getMemory();
         }
@@ -73,10 +80,20 @@ public class RunJoinExperiment {
 //        FactorJoinRS fj = new FactorJoinRS(d, joinKeyWidthMap, parMap, d.attrMap, config.seed, globalJoinKeyBins);
 //        long ingestTime = fj.ingest(con);
 //        queryFJ(fj, ingestTime);
+        Properties props = new Properties();
+        props.setProperty("access_mode", "READ_ONLY");
+
+        con =
+                (DuckDBConnection) DriverManager.getConnection(
+                        "jdbc:duckdb:" + config.duckdbPath,
+                        props
+                );
         double ingestBuffer = 0.1;
         HashMap<String, int[]> parMapASH = getParMapASH(ram, d.tableSizes, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer);
         FactorJoinASH fj = new FactorJoinASH(d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
         long ingestTime = fj.ingest(con);
+        System.out.println("Done with FJ ingestion.");
+        con.close();
         queryFJ(fj, ingestTime);
 
     }
@@ -364,15 +381,15 @@ public class RunJoinExperiment {
              * Reserve one tuple for the reservoir/buffer of each
              * partially sampled table.
              */
-            long bufferRam = 0L;
+//            long bufferRam = 0L;
             long totalTupleCost = 0L;
             for (String table : remaining) {
                 totalTupleCost+= tupleCost.get(table);
-                bufferRam += 100*tupleCost.get(table);
+//                bufferRam += 100*tupleCost.get(table);
             }
 
             long samplingRam =
-                    Math.max(0L, remainingRam - bufferRam);
+                    Math.max(0L, remainingRam);
 
 //            long ramPerTable =
 //                    samplingRam / remaining.size();
@@ -399,21 +416,21 @@ public class RunJoinExperiment {
             int samples =
                     sampleSizes.getOrDefault(table, 0);
 
-            int bufferSize = 100;
+            int bufferSize = (int) (0.05 * samples);
 
             /*
              * For a fully sampled table, bufferSize=1 but it represents
              * no additional reserved sampling memory.
              */
-            if (samples < bufferSize) { // completely sampled table.
+            if (bufferSize < 1) { // completely sampled table.
                 parMap.put(
                         table,
-                        new int[]{samples, 1}
+                        new int[]{samples - 1, 1}
                 );
             } else {
                 parMap.put(
                     table,
-                    new int[]{samples, bufferSize}
+                    new int[]{samples - bufferSize, bufferSize}
             );}
 
         }
@@ -823,22 +840,23 @@ public class RunJoinExperiment {
                 System.out.println("debug");
             }
             long start = System.currentTimeMillis();
-            double estimate = fj.query(q.syn_query);
+            org.synopses.factorJoin.FactorJoinASH.QueryEst qEst = fj.query(q.syn_query);
             long end = System.currentTimeMillis();
             long queryTime = end - start;
-            //            Map<String, FilteredTable> map = qEst.map();
-//            tableNs[i] = new double[map.size()];
+            double estimate = qEst.estimate();
+            Map<String, FilteredTableASH> map = qEst.map();
+            tableNs[i] = new double[map.size()];
 
-//            tableNames[i] = new String[map.size()];
-//            tableJoinKeys[i] = new int[map.size()];
-//            numJoins[i] = map.size();
-//            int j=0;
-//            for (FilteredTable ft : map.values()) {
-//                tableNames[i][j] = ft.t.getAlias().getName();
-//                tableNs[i][j] = ft.sumView;
-//                tableJoinKeys[i][j] = ft.unqColumns.size();
-//                j++;
-//            }
+            tableNames[i] = new String[map.size()];
+            tableJoinKeys[i] = new int[map.size()];
+            numJoins[i] = map.size();
+            int j=0;
+            for (FilteredTableASH ft : map.values()) {
+                tableNames[i][j] = ft.t.getAlias().getName();
+                tableNs[i][j] = ft.sumView;
+                tableJoinKeys[i][j] = ft.unqColumns.size();
+                j++;
+            }
             double error = estimate - q.getResult();
             estimates[i] = estimate;
             errors[i] = error;

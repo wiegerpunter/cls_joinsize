@@ -58,28 +58,39 @@ public class FilteredTableASH {
         }
 
         pkHasPred = pkHasPred();
-
-        view = new double[total][];
+        aSH.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
         if (isPrimaryKeyTable) {
             pkView = new double[s.getPKw()];
         }
+       view = new double[total][pkHasPred ? 2 : 1];
+        s.populateBucketView(
+                f.record(),
+                f.active(),
+                pkHasPred,
+                unqColumns,
+                joinKeyWidths,
+                view
+        );
 
-        aSH.queryInfo f = s.queryInfo(query.getSelectionPredicatesPerTable(t), this.unqColumns);
-        if (s.count < s.maxSize) {
-            System.out.println("Table " + t.getAlias().getName() + " has N=" + s.count + ", but uses " + s.maxSize + " samples with size: " + s.size);
-        } else {
-            System.out.println("Table " + t.getAlias().getName() + " has sampling rate " + (double) s.maxSize / s.count + " with N= " + s.count + " samples with size: " + s.size);
+        for (double[] v : view) {
+            sumView += v[0];
         }
-        for (int idx = 0; idx < total; idx++) {
-            int[] buckets = decodeIdx(idx, joinKeyWidths);
-            HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
-            for (int i = 0; i < unqColumns.size(); i++) {
-                bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
-            }
-            double[] raw = s.queryBucketAssignment(f.record(), bucketPerAttribute, f.active(), pkHasPred);
-            view[idx] = raw;
-            sumView += raw[0];
-        }
+
+//        } else {
+//            view = new double[total][];
+//            for (int idx = 0; idx < total; idx++) {
+//                int[] buckets = decodeIdx(idx, joinKeyWidths);
+//                HashMap<Integer, Integer> bucketPerAttribute = new HashMap<>(unqColumns.size());
+//                for (int i = 0; i < unqColumns.size(); i++) {
+//                    bucketPerAttribute.put(s.getIdCol(unqColumns.get(i).column()), buckets[i]);
+//                }
+//                double[] raw = s.queryBucketAssignment(f.record(), bucketPerAttribute, f.active(), pkHasPred);
+//                view[idx] = raw;
+//                sumView += raw[0];
+//            }
+//        }
+//
+
 
         if (isPrimaryKeyTable) {
             for (int idx = 0; idx < s.getPKw(); idx++) {

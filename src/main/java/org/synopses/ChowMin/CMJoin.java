@@ -59,6 +59,7 @@ public class CMJoin {
 
         long start = System.currentTimeMillis();
         for (String t : jd.tableNames) {
+            System.out.println("Ingesting table " + t);
             ChowMinAllPairs syn = cmj.get(t);
             int numColumns = jd.numColumnsPerTable.get(t);
             String dataQuery = "SELECT * FROM " + t;
@@ -99,7 +100,7 @@ public class CMJoin {
         double[] estimates = new double[depth];
 
         // All unique join keys participating in the query.
-        List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
+//        List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
 
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
@@ -107,7 +108,7 @@ public class CMJoin {
             List<FilteredTable.Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK);
             estimates[j] = variableElimination(factors, globalWidths.length, globalWidths);
 //            double oldEst =  estimateJoinSize(synQuery, filtered, joinKeys);
-//            if (Math.abs(estimates[j] - oldEst) >=1000) {
+//            if (Math.abs(estimates[j] - oldEst) >=0) {
 //               System.out.println("Var EL not equal to old estimate");
 //            }
             estToFilteredMap.put(estimates[j], filtered);

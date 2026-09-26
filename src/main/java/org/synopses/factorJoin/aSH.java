@@ -13,6 +13,8 @@ import org.utils.Formulas;
 
 import java.util.*;
 
+import static org.synopses.factorJoin.FilteredTableASH.getIdx;
+
 public class aSH {
     // Adaptive Sample and Hold. Sketch for estimating count of elements in a stream.
     int numAttrs; // Double[] is of form c_i, tau_i, u_i, z_i
@@ -251,6 +253,98 @@ public class aSH {
         }
         return queryResultCount;
 
+    }
+
+    public void populateBucketView(
+            int[] query,
+            HashSet<Integer> active,
+            boolean pkHasPred,
+            List<SynopsisQuery.ColumnKey> unqColumns,
+            int[] joinKeyWidths,
+            double[][] view) {
+
+        if (!useBufferInQuery && size > sketchSize) {
+            eject();
+        }
+
+        HashMap<Integer, Integer> joinKeyPosition =
+                new HashMap<>(unqColumns.size());
+
+        for (int i = 0; i < unqColumns.size(); i++) {
+            int attr = getIdCol(unqColumns.get(i).column());
+            joinKeyPosition.put(attr, i);
+        }
+
+        for (Map.Entry<IntArrayKey, double[]> entry : sketch.entrySet()) {
+
+            IntArrayKey key = entry.getKey();
+            double weight = entry.getValue()[0] + entry.getValue()[1];
+
+            /*
+             * Determine whether this row satisfies the selection
+             * predicates.
+             */
+            boolean matchesPredicate = true;
+
+            for (int j = 0; j < query.length; j++) {
+
+                if (query[j] == -1) {
+                    continue;
+                }
+
+                if (key.data[j] != query[j]) {
+                    matchesPredicate = false;
+                    break;
+                }
+            }
+
+            /*
+             * Determine the bucket assignment represented by this row.
+             */
+            int[] buckets = new int[unqColumns.size()];
+
+            boolean valid = true;
+
+            for (int i = 0; i < unqColumns.size(); i++) {
+
+                int attr =
+                        getIdCol(unqColumns.get(i).column());
+
+                Integer bucket = key.jkBins.get(attr);
+
+                if (bucket == null) {
+                    valid = false;
+                    break;
+                }
+
+                buckets[i] = bucket;
+            }
+
+            if (!valid) {
+                continue;
+            }
+
+            int viewIdx = getIdx(buckets, joinKeyWidths);
+
+            /*
+             * [0] = unfiltered count
+             * [1] = filtered count
+             */
+            if (pkHasPred) {
+
+                view[viewIdx][0] += weight;
+
+                if (matchesPredicate) {
+                    view[viewIdx][1] += weight;
+                }
+
+            } else {
+
+                if (matchesPredicate) {
+                    view[viewIdx][0] += weight;
+                }
+            }
+        }
     }
 
     public double[] queryBucketAssignment(int[] query, HashMap<Integer, Integer> bucketPerAttribute,

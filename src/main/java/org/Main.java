@@ -3,6 +3,7 @@ package org;
 import java.io.File;
 import java.sql.DriverManager;
 
+import java.util.Properties;
 import java.util.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,16 +46,22 @@ public class Main {
                 }
                 break;
             case "joinSize":
+                Properties props = new Properties();
+                props.setProperty("access_mode", "READ_ONLY");
                 DuckDBConnection con =
                         (DuckDBConnection) DriverManager.getConnection(
-                                "jdbc:duckdb:" + config.duckdbPath
+                                "jdbc:duckdb:" + config.duckdbPath, props
                         );
+//                DuckDBConnection con =
+//                        (DuckDBConnection) DriverManager.getConnection(
+//                                "jdbc:duckdb:" + config.duckdbPath
+//                        );
 
                 JoinDataset d = new JoinDataset(con, config);
 
                 RunJoinExperiment rje = new RunJoinExperiment(config, d, con);
 
-                con.close();
+//                con.close();
                 break;
         }
 

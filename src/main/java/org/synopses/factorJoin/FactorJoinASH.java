@@ -92,7 +92,11 @@ public class FactorJoinASH {
         return end-start;
     }
 
-    public double query(SynopsisQuery synQuery) {
+    public record QueryEst(double estimate, Map<String, FilteredTableASH> map) {
+
+    }
+
+    public QueryEst query(SynopsisQuery synQuery) {
         // 1. select tables for query
         // 2. apply predicates selecting for the eq join key something that it has to multiply with
         // 3. join size is estimated by inference procedure over the RS equi-width domains per eq join key
@@ -103,12 +107,7 @@ public class FactorJoinASH {
         Map<Double, Map<String, FilteredTableASH>> estToFilteredMap = new HashMap<>();
         Map<String, FilteredTableASH> filtered = filterTables(synQuery); // applying local predicates.
         List<Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK);
-        double varEst = variableElimination(factors, globalWidths.length, globalWidths);
-//        double oldEst = estimateJoinSize(synQuery, filtered, joinKeys);
-//        if (Math.abs(varEst - oldEst) >=1000) {
-//           System.out.println("Var EL not equal to old estimate");
-//        }
-        return varEst;
+        return new QueryEst(variableElimination(factors, globalWidths.length, globalWidths), filtered);
     }
     private Map<String, FilteredTableASH> filterTables(SynopsisQuery query) {
         HashMap<String, FilteredTableASH> map = new HashMap<>();

@@ -527,51 +527,51 @@ public class ChowMinAllPairs extends AbstractSynopsis {
         // check ig all margs are same;
         return true;
     }
-    private double[] pathQueryOneRep(int j, int numDimensions, int[] indices, List<Edge> f, boolean pkHasPred) {
+    private double[] pathQueryOneRep(int j, int[] indices, List<Edge> f, HashMap<Integer, Integer> bucketPerAttribute, boolean pkHasPred) {
         double sum = 0;
         int[] k = new int[numAttributes];
         double pkMarginal;
-        while (true) {
-            for (int i = 0; i < numDimensions; i++) {
-                AttributeDimensionOneRep dim = attributeDimensionsOneRep.get(i);
-                k[dim.attribute] = dim.valuesPerCodomain;
-            }
+//        while (true) {
+        for (int attr : bucketPerAttribute.keySet()) {
+//                AttributeDimensionOneRep dim = attributeDimensionsOneRep.get(i);
+            k[attr] = bucketPerAttribute.get(attr);
+        }
 
-            double product_p = 0;
-            for (Edge edge : f) {
-                int s = edge.getS();
-                int t = edge.getT();
-                int mine = Math.min(s,t);
-                int maxe = Math.max(s,t);
-                if (s == t) {
-                    product_p = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
-                } else {
-                    double jointFreq = sketches[sketch_idx(mine, maxe)].queryCodomainWOLatentOneRep(j, k[mine], k[maxe]);
-                    double denominator = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
-                    if (jointFreq > denominator) {
-                        throw new RuntimeException("Joint larger than denominator");
-                    }
-                    product_p *= jointFreq / denominator;
+        double product_p = 0;
+        for (Edge edge : f) {
+            int s = edge.getS();
+            int t = edge.getT();
+            int mine = Math.min(s,t);
+            int maxe = Math.max(s,t);
+            if (s == t) {
+                product_p = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
+            } else {
+                double jointFreq = sketches[sketch_idx(mine, maxe)].queryCodomainWOLatentOneRep(j, k[mine], k[maxe]);
+                double denominator = sketches[sketch_idx_first(s)].marginalOneRep(j, s, k[s]);
+                if (jointFreq > denominator) {
+                    throw new RuntimeException("Joint larger than denominator");
                 }
-            }
-            if (product_p > 0) {
-                sum += product_p;
-            }
-
-            int pos = numDimensions - 1;
-            while (pos >= 0) {
-                indices[pos]++;
-                if (indices[pos] < attributeDimensionsOneRep.get(pos).codomainSize) {
-                    break;
-                }
-                indices[pos] = 0;
-                pos--;
-            }
-
-            if (pos < 0) {
-                break; // all combinations exhausted
+                product_p *= jointFreq / denominator;
             }
         }
+        if (product_p > 0) {
+            sum += product_p;
+        }
+
+//            int pos = bucketPerAttribute.size() - 1;
+//            while (pos >= 0) {
+//                indices[pos]++;
+//                if (indices[pos] < 1) {
+//                    break;
+//                }
+//                indices[pos] = 0;
+//                pos--;
+//            }
+//
+//            if (pos < 0) {
+//                break; // all combinations exhausted
+//            }
+//        }
         if (pkHasPred) { // pass on ratio of PK table.
 //            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
 //                throw new RuntimeException("Columns[0] is " + columns[0]);
@@ -854,35 +854,31 @@ public class ChowMinAllPairs extends AbstractSynopsis {
                                           HashSet<Integer> active, boolean pkHasPred) {
         constructDimensionsOneRep(record, bucketPerAttribute, j, active);
 
-        int dims = attributeDimensionsOneRep.size();
-        int[] indices = new int[dims];
+//        int dims = attributeDimensionsOneRep.size();
+        int[] indices = new int[bucketPerAttribute.size()];
 
-        return pathQueryOneRep(j, dims, indices, factors, pkHasPred);
+        return pathQueryOneRep(j, indices, factors, bucketPerAttribute, pkHasPred);
     }
 
     private void constructDimensionsOneRep(String[] record,
                                            HashMap<Integer, Integer> bucketPerAttribute, int j,
                                            HashSet<Integer> active) {
-        attributeDimensionsOneRep = new ArrayList<>();
+//        attributeDimensionsOneRep = new ArrayList<>();
 
         for (int attr : active) {
-            int valuesCodomain;
 
-            if (bucketPerAttribute.containsKey(attr)) {
-                // Join key fixed to bucket b
-                valuesCodomain = bucketPerAttribute.get(attr);
-            }
-            else if (record[attr] != null) {
+            if (!bucketPerAttribute.containsKey(attr) &&record[attr] != null) {
                 // Predicate attribute
                 int[] codomain = getCodomain(attr, record[attr]);
-                valuesCodomain = codomain[j];
+//                valuesCodomain = codomain[j];
+                bucketPerAttribute.put(attr, codomain[j]);
             }
-            else {
-                throw new RuntimeException("Inactive attribute");
-            }
-            attributeDimensionsOneRep.add(
-                    new AttributeDimensionOneRep(attr, valuesCodomain)
-            );
+//            else {
+//                throw new RuntimeException("Inactive attribute");
+//            }
+//            attributeDimensionsOneRep.add(
+//                    new AttributeDimensionOneRep(attr, valuesCodomain)
+//            );
         }
     }
 
