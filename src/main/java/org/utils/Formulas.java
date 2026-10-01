@@ -35,7 +35,7 @@ public class Formulas {
         return (int) ((depth * numAttrsToUse + 1) * B  * 32L);
     }
 
-    public static  int ramASHWithBins(int maxSize, int numAttrs, int numJoinKeys) {
-        return maxSize * (32 * (numAttrs + numJoinKeys) + 5 * 64 + 2 *32);
+    public static long ramASHWithBins(int maxSize, int numAttrs, int numJoinKeys) {
+        return maxSize * (32L * (numAttrs + numJoinKeys) + 5L * 64L + 2L *32L);
     }
 }

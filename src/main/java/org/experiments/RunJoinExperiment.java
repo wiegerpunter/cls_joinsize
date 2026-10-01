@@ -9,11 +9,14 @@ import org.duckdb.DuckDBConnection;
 import org.synopses.ChowMin.CMJoin;
 import org.synopses.ChowMin.FilteredTable;
 import org.synopses.factorJoin.FactorJoinASH;
-import org.synopses.factorJoin.FactorJoinRS;
 import org.synopses.factorJoin.FilteredTableASH;
+import org.synopses.factorJoin.aSH;
 import org.utils.Config;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,8 +27,7 @@ import java.util.*;
 public class RunJoinExperiment {
     Config config;
     DuckDBConnection con;
-    JoinDataset d;
-    private final String folder;// = "/home/wieger/sandboxChowMin/resultsJoinSize/";
+    JoinDataset d;// = "/home/wieger/sandboxChowMin/resultsJoinSize/";
     private final String CSV_FILE_NAME;// = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
 
     public RunJoinExperiment(Config config, JoinDataset d, DuckDBConnection con) throws Exception {
@@ -41,8 +43,10 @@ public class RunJoinExperiment {
 //            queryRS(rsj);
 //        }
 
-        folder = config.outputFolder;//"/home/wieger/sandboxChowMin/resultsJoinSize/";
-        CSV_FILE_NAME = folder + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + ".csv";
+//        String folder = config.outputFolder;//"/home/wieger/sandboxChowMin/resultsJoinSize/";
+        Path folder = Paths.get(config.outputFolder);
+        Files.createDirectories(folder);
+        CSV_FILE_NAME = folder +"/seed_" + config.seed +"_"+ new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "_" + config.seed + ".csv";
         HashMap<String, Buckets> globalJoinKeyBins = readJoinKeyBins(config.binPath, config.joinWidth, d.globalColToJoinKey);
 
 
@@ -62,10 +66,14 @@ public class RunJoinExperiment {
         if (config.sepHHs) {
             hhValuesMaps = readhhValuesMaps(config.hhValuesMapPath);
         }
+        long ingestTimeRead = readTime(d, con);
+        writeReadTime(ingestTimeRead);
+        System.out.println("Read time saved");
+
         long ram=0;
         for (int j = 0; j < config.num_rows.length; j++) {
             ram=0;
-            CMJoin cmj = new CMJoin(d, d.attrMap, 0, config.num_rows[j], widthMap, exactHashable, exactHashMap,
+            CMJoin cmj = new CMJoin(config, d, d.attrMap, 0, config.num_rows[j], widthMap, exactHashable, exactHashMap,
                     joinKeyWidthMap, config.sepHHs, hhValuesMaps, config.seed);
             long ingestTime = cmj.initialize(con);
             System.out.println("Done with CLS ingestion");
@@ -89,12 +97,76 @@ public class RunJoinExperiment {
                         props
                 );
         double ingestBuffer = 0.1;
-        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.tableSizes, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer);
-        FactorJoinASH fj = new FactorJoinASH(d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
+        HashMap<String, int[]> parMapASH = getParMapASH(ram, d.tableSizes, d.attrMap, d.jksPerTable, globalJoinKeyBins, ingestBuffer, config.uqRatio);
+        FactorJoinASH fj = new FactorJoinASH(config, d, joinKeyWidthMap, parMapASH, d.attrMap, config.seed, globalJoinKeyBins);
         long ingestTime = fj.ingest(con);
         System.out.println("Done with FJ ingestion.");
         con.close();
         queryFJ(fj, ingestTime);
+
+    }
+
+    private void writeReadTime(long readIngestTime) throws Exception {
+        int numQueries = d.getQueries().length;
+        String[] queryName = new String[numQueries];
+        double[] estimates= new double[numQueries];
+        double[] errors = new double[numQueries];
+        double[] exact = new double[numQueries];
+        long[] queryTimes = new long[numQueries];
+        int[] numJoins = new int[numQueries];
+        double[][] tableNs = new double[numQueries][];
+        int[][] tableJoinKeys = new int[numQueries][];
+        String[][] tableNames = new String[numQueries][];
+        List<SynopsisQuery.JoinPredicate>[] joins = new List[numQueries];
+        List<EqualsTo>[] selections = new List[numQueries];
+        for (int i = 0; i < numQueries; i++) {
+            Query q = d.getQueries()[i];
+            long start = System.currentTimeMillis();
+            long end = System.currentTimeMillis();
+            long queryTime = end - start;
+            double estimate = 1;
+            tableNs[i] = new double[0];
+
+            tableNames[i] = new String[0];
+            tableJoinKeys[i] = new int[0];
+            numJoins[i] = 1;
+            estimates[i] = estimate;
+            errors[i] = 1;
+            exact[i] = 1;
+            queryName[i] = q.getName();
+            joins[i] = q.syn_query.joins;
+            selections[i] = q.syn_query.selections;
+            queryTimes[i] = queryTime;
+        }
+
+        writeResults("readFile", queryName, estimates, exact, errors, 1, 0,
+                0, readIngestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins,
+                selections, queryTimes, new int[0], new int[2][0], config.maxLocalWidth, config.seed);
+    }
+
+    private long readTime(JoinDataset jd, DuckDBConnection con) {
+        long i = 0;
+        long start = System.currentTimeMillis();
+        for (String t : jd.tableNames) {
+            System.out.println("Ingesting table " + t);
+            int numColumns = jd.numColumnsPerTable.get(t);
+            String dataQuery = "SELECT * FROM " + t;
+            try (Statement stmt = con.createStatement();
+                 ResultSet rs = stmt.executeQuery(dataQuery)
+            ) {
+                while (rs.next()) {
+                    int[] rec = new int[numColumns];
+                    for (int col = 1; col <= numColumns; col++) {
+                        rec[col-1] = rs.getString(col).hashCode();
+                    }
+                    i+= rec[0];
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        long end = System.currentTimeMillis();
+        return end-start;
 
     }
 
@@ -156,7 +228,7 @@ public class RunJoinExperiment {
                     while (rs.next()) {
                         String value = rs.getString(1);
 
-                        if (!sharedMap.containsKey(value)) {
+                        if (value != null && !sharedMap.containsKey(value)) {
                             sharedMap.put(value, sharedMap.size());
                         }
                     }
@@ -242,7 +314,7 @@ public class RunJoinExperiment {
                     while (rs.next()) {
                         String value = rs.getString(1);
 
-                        if (!valueMap.containsKey(value)) {
+                        if (value != null && !valueMap.containsKey(value)) {
                             valueMap.put(value, valueMap.size());
                         }
                     }
@@ -292,7 +364,8 @@ public class RunJoinExperiment {
     private HashMap<String, int[]> getParMapASH(long ram, HashMap<String, Integer> tableSizes, HashMap<String, String[]> attrMap,
                                                   HashMap<String, List<String>> jksPerTable,
                                                 HashMap<String, Buckets> globalJoinKeyBins,
-                                                  double ingestBuffer) {
+                                                  double ingestBuffer,
+                                                int uqratio) {
         HashMap<String, int[]> parMap = new HashMap<>();
 
         if (attrMap.isEmpty()) {
@@ -415,14 +488,19 @@ public class RunJoinExperiment {
 
             int samples =
                     sampleSizes.getOrDefault(table, 0);
+            int N = tableSizes.get(table);
+            double sampleRate = (double) samples / N;
 
-            int bufferSize = (int) (0.05 * samples);
-
+            int bufferSize = (int) (sampleRate * uqratio);
+            if (bufferSize > samples) {
+                bufferSize = (int) (samples * 0.01);
+            }
+//            int bufferSize = (int) (0.5*samples);
             /*
              * For a fully sampled table, bufferSize=1 but it represents
              * no additional reserved sampling memory.
              */
-            if (bufferSize < 1) { // completely sampled table.
+            if (bufferSize <= 1) { // completely sampled table.
                 parMap.put(
                         table,
                         new int[]{samples - 1, 1}
@@ -868,7 +946,9 @@ public class RunJoinExperiment {
         }
 
         writeResults(fj.setting, queryName, estimates, exact, errors, 1, fj.getMemory(),
-                fj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins, selections, queryTimes);
+                fj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins,
+                joins, selections, queryTimes,
+                fj.globalWidths, fj.getSamplesPerTable(),config.maxLocalWidth,config.seed);
 
     }
     private void queryCM(CMJoin cmj, long ingestTime) throws Exception {
@@ -888,6 +968,9 @@ public class RunJoinExperiment {
         for (int i = 0; i < numQueries; i++) {
             Query q = d.getQueries()[i];
             long start = System.currentTimeMillis();
+            if (q.getName().equals("query_134_216.sql")) {
+                System.out.println("debug");
+            }
             CMJoin.QueryEst qEst = cmj.query(q.syn_query);
             long end = System.currentTimeMillis();
             long queryTime = end - start;
@@ -916,13 +999,15 @@ public class RunJoinExperiment {
         }
 
         writeResults(cmj.setting, queryName, estimates, exact, errors, cmj.getDepth(), cmj.getMemory(),
-                cmj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins, selections, queryTimes);
+                cmj.getDatasetMemory(), ingestTime, tableNs, tableNames,tableJoinKeys, numJoins, joins,
+                selections, queryTimes, cmj.globalWidths, new int[2][0], config.maxLocalWidth, config.seed);
     }
 
     private void writeResults(String setting,String[] queryName, double[] estimates, double[] exact,
-                              double[] errors, int d, int ram, long datasetMemory,
+                              double[] errors, int d, long ram, long datasetMemory,
                               long ingestTime, double[][] tableNs, String[][] tableNames, int[][] tableJoinKeys, int[] numTables,
-                              List[] joins, List[] selections, long[] queryTimes) throws Exception {
+                              List[] joins, List[] selections, long[] queryTimes,
+                              int[] globalJoinKeyWidths, int[][] samplesPerTable, int maxLocalWidth, int repetition) throws Exception {
 
 
         boolean init = !new File(CSV_FILE_NAME).exists();
@@ -930,11 +1015,12 @@ public class RunJoinExperiment {
         CSVWriter writer = new CSVWriter(new FileWriter(CSV_FILE_NAME, true));
         if (init) {
             String[] header = new String[]{"queryID","setting","memUsage","estimate","exact","error","absError","relError",
-                    "d","datasetMemory","ingestTime","tableNs","tableNames","tableJoinKeys","numTables","joins","selections","queryTime"};
+                    "d","datasetMemory","ingestTime","tableNs","tableNames","tableJoinKeys","numTables","joins","selections","queryTime",
+            "globalJoinKeyWidths","samplesPerTable","bufferPerTable","maxLocalWidth","repetition"};
             writer.writeNext(header);
         }
         for  (int i = 0; i < estimates.length; i++) {
-            String[] result = new String[18];
+            String[] result = new String[23];
             result[0] = queryName[i];
             result[1] = setting;
             result[2] = String.valueOf(ram);
@@ -953,6 +1039,11 @@ public class RunJoinExperiment {
             result[15] = String.valueOf(joins[i]);
             result[16] = String.valueOf(selections[i]);
             result[17] = String.valueOf(queryTimes[i]);
+            result[18] = Arrays.toString(globalJoinKeyWidths);
+            result[19] = Arrays.toString(samplesPerTable[0]);
+            result[20] = Arrays.toString(samplesPerTable[1]);
+            result[21] = String.valueOf(maxLocalWidth);
+            result[22] = String.valueOf(repetition);
 
             writer.writeNext(result);
         }

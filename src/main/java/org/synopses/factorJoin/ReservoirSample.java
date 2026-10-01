@@ -11,6 +11,8 @@ import org.experiments.RunJoinExperiment;
 
 import java.util.*;
 
+import static org.synopses.factorJoin.aSH.getBinHelper;
+
 public class ReservoirSample {
     private int[][] reservoir;
     private int count;
@@ -90,16 +92,7 @@ public class ReservoirSample {
 //    }
 
     private int getBin(int value, RunJoinExperiment.Buckets b) {
-        int bin = (int) ((value - b.min) / b.binSize);
-
-        if (bin < 0) {
-            return 0;
-        }
-        if (bin >= b.nbins) {
-            return b.nbins - 1;
-        }
-
-        return bin;
+        return getBinHelper(value, b);
     }
 
     public void delete(int[] r) {

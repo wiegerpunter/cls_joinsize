@@ -6,6 +6,7 @@ import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
 import org.experiments.RunJoinExperiment;
 import org.synopses.ChowMin.FilteredTable;
+import org.utils.Config;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,13 +25,16 @@ public class FactorJoinASH {
     public String setting = "FactorJoin_aSH";
     HashMap<String, Integer> numColumnsPerTable;
     JoinDataset jd;
-    int[] globalWidths;
+    public int[] globalWidths;
+    public int[] samplesPerTables;
+    Config config;
 
-    public FactorJoinASH(JoinDataset jd, HashMap<String, Integer> joinKeyWidthMap,
+    public FactorJoinASH(Config config, JoinDataset jd, HashMap<String, Integer> joinKeyWidthMap,
                          HashMap<String, int[]> parMap, HashMap<String, String[]> attrMap,
                          int repetition,
                          HashMap<String, RunJoinExperiment.Buckets> globalJoinKeyBins
                       ) {
+        this.config = config;
         this.parMap = parMap;
         this.attrMap = attrMap;
         this.joinKeyWidthMap = joinKeyWidthMap;
@@ -79,7 +83,12 @@ public class FactorJoinASH {
                             }
                         }
                     }
-                    int sign = Integer.parseInt(rs.getString(numColumns+2));
+                    int sign;
+                    if (config.withDeletes) {
+                        sign =Integer.parseInt(rs.getString(numColumns+2));
+                    } else {
+                        sign =1;
+                    }
                     syn.ingestArr(rec, sign);
                 }
             } catch (SQLException e) {
@@ -90,6 +99,17 @@ public class FactorJoinASH {
         }
         long end = System.currentTimeMillis();
         return end-start;
+    }
+
+    public int[][] getSamplesPerTable() {
+        int[][] samplesPerTable = new int[2][parMap.size()];
+        int i = 0;
+        for (String table : parMap.keySet()) {
+            samplesPerTable[0][i] = parMap.get(table)[0];
+            samplesPerTable[1][i] = parMap.get(table)[1];
+            i++;
+        }
+        return samplesPerTable;
     }
 
     public record QueryEst(double estimate, Map<String, FilteredTableASH> map) {
@@ -106,7 +126,7 @@ public class FactorJoinASH {
 
         Map<Double, Map<String, FilteredTableASH>> estToFilteredMap = new HashMap<>();
         Map<String, FilteredTableASH> filtered = filterTables(synQuery); // applying local predicates.
-        List<Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK);
+        List<Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK, config.pkFkOptimization);
         return new QueryEst(variableElimination(factors, globalWidths.length, globalWidths), filtered);
     }
     private Map<String, FilteredTableASH> filterTables(SynopsisQuery query) {
@@ -537,7 +557,8 @@ public class FactorJoinASH {
     private List<Factor> buildFactors(
             Map<String, FilteredTableASH> filtered,
             int[] globalWidths,
-            HashMap<Integer, Integer> bucketToJK) {
+            HashMap<Integer, Integer> bucketToJK,
+            boolean pkFkOptimization) {
 
         List<Factor> factors =
                 new ArrayList<>();
@@ -554,64 +575,65 @@ public class FactorJoinASH {
                             bucketToJK));
         }
 
-        for (FilteredTableASH ft : filtered.values()) {
+        if (pkFkOptimization) {
+            for (FilteredTableASH ft : filtered.values()) {
 
-            for (int i = 0;
-                 i < ft.globalJoinKeyIdx.length;
-                 i++) {
+                for (int i = 0;
+                     i < ft.globalJoinKeyIdx.length;
+                     i++) {
 
-                /*
-                 * Nothing to correct on the PK side.
-                 */
-                if (ft.pkJoinKey[i]) {
-                    continue;
-                }
+                    /*
+                     * Nothing to correct on the PK side.
+                     */
+                    if (ft.pkJoinKey[i]) {
+                        continue;
+                    }
 
-                int jk =
-                        ft.globalJoinKeyIdx[i];
+                    int jk =
+                            ft.globalJoinKeyIdx[i];
 
-                /*
-                 * Find the PK relation for this global join key.
-                 */
-                FilteredTableASH pkTable = null;
+                    /*
+                     * Find the PK relation for this global join key.
+                     */
+                    FilteredTableASH pkTable = null;
 
-                for (FilteredTableASH candidate : filtered.values()) {
+                    for (FilteredTableASH candidate : filtered.values()) {
 
-                    for (int k = 0;
-                         k < candidate.globalJoinKeyIdx.length;
-                         k++) {
+                        for (int k = 0;
+                             k < candidate.globalJoinKeyIdx.length;
+                             k++) {
 
-                        if (candidate.globalJoinKeyIdx[k] == jk
-                                && candidate.pkJoinKey[k]) {
+                            if (candidate.globalJoinKeyIdx[k] == jk
+                                    && candidate.pkJoinKey[k]) {
 
-                            pkTable = candidate;
+                                pkTable = candidate;
+                                break;
+                            }
+                        }
+
+                        if (pkTable != null) {
                             break;
                         }
                     }
 
-                    if (pkTable != null) {
-                        break;
-                    }
-                }
-
-                if (pkTable == null) {
-                    continue;
+                    if (pkTable == null) {
+                        continue;
 //                    throw new IllegalStateException(
 //                            "No PK side found for join key " + jk);
+                    }
+
+                    int width =
+                            globalWidths[bucketToJK.get(jk)];
+
+                    factors.add(
+                            makeInversePKFactor(
+                                    pkTable,
+                                    bucketToJK.get(jk),
+                                    width));
                 }
-
-                int width =
-                        globalWidths[bucketToJK.get(jk)];
-
-                factors.add(
-                        makeInversePKFactor(
-                                pkTable,
-                                bucketToJK.get(jk),
-                                width));
             }
+
         }
-
-
         return factors;
     }
 
@@ -1132,8 +1154,8 @@ public class FactorJoinASH {
 //        return sum;
     }
 
-    public int getMemory() {
-        int ram = 0;
+    public long getMemory() {
+        long ram = 0;
         for (aSH sketch : sketch.values()) {
             ram+= sketch.getMemoryUsage();
         }

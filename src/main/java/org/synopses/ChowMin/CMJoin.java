@@ -5,6 +5,7 @@ import org.dataset.JoinDataset;
 import org.dataset.SynopsisQuery;
 import org.duckdb.DuckDBConnection;
 import org.experiments.RunJoinExperiment;
+import org.utils.Config;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,17 +21,19 @@ public class CMJoin {
     int depth;
     public HashMap<String, HashMap<String, Integer>> widthMap;
     HashMap<String, Integer> joinKeyWidthMap;
-    int[] globalWidths;
+    public int[] globalWidths;
     public String setting = "CMJoin";
     JoinDataset jd;
+    Config config;
 
-    public CMJoin(JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth,
+    public CMJoin(Config config, JoinDataset jd, HashMap<String, String[]> attrMap, int ram, int depth,
                   HashMap<String, HashMap<String, Integer>> widthMap,
                   HashMap<String, HashMap<String, Boolean>> exactHashable,
                   HashMap<String, HashMap<String, HashMap<String, Integer>>> exactHashMap,
                   HashMap<String, Integer> joinKeyWidthMap, boolean sepHHs,
                   HashMap<String, HashMap<String, List<String>>> hhValuesMaps,
                   int seed) {
+        this.config = config;
         cmj = new HashMap<>();
         this.attrMap = attrMap;
         this.depth = depth;
@@ -71,7 +74,12 @@ public class CMJoin {
                     for (int col = 1; col <= numColumns; col++) {
                         rec[col - 1] = rs.getString(col);
                     }
-                    int sign = Integer.parseInt(rs.getString(numColumns+2));
+                    int sign;
+                    if (config.withDeletes) {
+                        sign = Integer.parseInt(rs.getString(numColumns + 2));
+                    } else {
+                        sign = 1;
+                    }
                     syn.addStringArr(rec, sign);
                 }
             } catch (SQLException e) {
@@ -100,12 +108,13 @@ public class CMJoin {
         double[] estimates = new double[depth];
 
         // All unique join keys participating in the query.
-//        List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
+        List<String> joinKeys = new ArrayList<>(synQuery.globalJoinKeysInQuerySet);
 
         Map<Double, Map<String, FilteredTable>> estToFilteredMap = new HashMap<>();
         for (int j = 0; j < depth; j++) {
             Map<String, FilteredTable> filtered = filterTables(j, synQuery); // applying local predicates.
-            List<FilteredTable.Factor> factors = buildFactors(filtered, globalWidths, synQuery.bucketToJK);
+            List<FilteredTable.Factor> factors = buildFactors(filtered, globalWidths,
+                    synQuery.bucketToJK, config.pkFkOptimization);
             estimates[j] = variableElimination(factors, globalWidths.length, globalWidths);
 //            double oldEst =  estimateJoinSize(synQuery, filtered, joinKeys);
 //            if (Math.abs(estimates[j] - oldEst) >=0) {
@@ -518,7 +527,8 @@ public class CMJoin {
     private List<FilteredTable.Factor> buildFactors(
             Map<String, FilteredTable> filtered,
             int[] globalWidths,
-            HashMap<Integer, Integer> bucketToJK) {
+            HashMap<Integer, Integer> bucketToJK,
+            boolean pkFkOptimization) {
 
         List<FilteredTable.Factor> factors =
                 new ArrayList<>();
@@ -534,65 +544,64 @@ public class CMJoin {
                             globalWidths,
                             bucketToJK));
         }
+        if (pkFkOptimization) {
+            for (FilteredTable ft : filtered.values()) {
 
-        for (FilteredTable ft : filtered.values()) {
+                for (int i = 0;
+                     i < ft.globalJoinKeyIdx.length;
+                     i++) {
 
-            for (int i = 0;
-                 i < ft.globalJoinKeyIdx.length;
-                 i++) {
+                    /*
+                     * Nothing to correct on the PK side.
+                     */
+                    if (ft.pkJoinKey[i]) {
+                        continue;
+                    }
 
-                /*
-                 * Nothing to correct on the PK side.
-                 */
-                if (ft.pkJoinKey[i]) {
-                    continue;
-                }
+                    int jk =
+                            ft.globalJoinKeyIdx[i];
 
-                int jk =
-                        ft.globalJoinKeyIdx[i];
+                    /*
+                     * Find the PK relation for this global join key.
+                     */
+                    FilteredTable pkTable = null;
 
-                /*
-                 * Find the PK relation for this global join key.
-                 */
-                FilteredTable pkTable = null;
+                    for (FilteredTable candidate : filtered.values()) {
 
-                for (FilteredTable candidate : filtered.values()) {
+                        for (int k = 0;
+                             k < candidate.globalJoinKeyIdx.length;
+                             k++) {
 
-                    for (int k = 0;
-                         k < candidate.globalJoinKeyIdx.length;
-                         k++) {
+                            if (candidate.globalJoinKeyIdx[k] == jk
+                                    && candidate.pkJoinKey[k]) {
 
-                        if (candidate.globalJoinKeyIdx[k] == jk
-                                && candidate.pkJoinKey[k]) {
+                                pkTable = candidate;
+                                break;
+                            }
+                        }
 
-                            pkTable = candidate;
+                        if (pkTable != null) {
                             break;
                         }
                     }
 
-                    if (pkTable != null) {
-                        break;
+                    if (pkTable == null) {
+                        continue;
+    //                    throw new IllegalStateException(
+    //                            "No PK side found for join key " + jk);
                     }
+
+                    int width =
+                            globalWidths[bucketToJK.get(jk)];
+
+                    factors.add(
+                            makeInversePKFactor(
+                                    pkTable,
+                                    bucketToJK.get(jk),
+                                    width));
                 }
-
-                if (pkTable == null) {
-                    continue;
-//                    throw new IllegalStateException(
-//                            "No PK side found for join key " + jk);
-                }
-
-                int width =
-                        globalWidths[bucketToJK.get(jk)];
-
-                factors.add(
-                        makeInversePKFactor(
-                                pkTable,
-                                bucketToJK.get(jk),
-                                width));
             }
         }
-
-
         return factors;
     }
 
@@ -623,60 +632,6 @@ public class CMJoin {
         }
 
         return new FilteredTable.Factor(vars, widths, values);
-    }
-
-    private FilteredTable.Factor makeCountFactor(
-            FilteredTable ft,
-            int[] globalWidths) {
-
-        int k = ft.globalJoinKeyIdx.length;
-
-        int[] vars = ft.globalJoinKeyIdx.clone();
-        int[] widths = ft.joinKeyWidths.clone();
-
-        double[] values = new double[ft.view.length];
-
-        for (int i = 0; i < ft.view.length; i++) {
-            values[i] = ft.view[i][0];
-        }
-
-        return new FilteredTable.Factor(vars, widths, values);
-    }
-
-    private FilteredTable.Factor makeSelectedFactor(
-            FilteredTable ft) {
-
-        int k = ft.globalJoinKeyIdx.length;
-
-        int[] vars = ft.globalJoinKeyIdx.clone();
-        int[] widths = ft.joinKeyWidths.clone();
-
-        double[] values = new double[ft.view.length];
-
-        for (int i = 0; i < ft.view.length; i++) {
-            values[i] = ft.view[i][1];
-        }
-
-        return new FilteredTable.Factor(vars, widths, values);
-    }
-
-
-    private FilteredTable.Factor makePKFactor(
-            FilteredTable ft,
-            int globalJK,
-            int width) {
-
-        double[] values = new double[width];
-
-        for (int b = 0; b < width; b++) {
-            values[b] = getMarginal(ft, b);
-        }
-
-        return new FilteredTable.Factor(
-                new int[]{globalJK},
-                new int[]{width},
-                values
-        );
     }
 
     private FilteredTable.Factor makeInversePKFactor(
@@ -1109,8 +1064,8 @@ public class CMJoin {
         return depth;
     }
 
-    public int getMemory() {
-        int ram = 0;
+    public long getMemory() {
+        long ram = 0;
         for (ChowMinAllPairs sketch : cmj.values()) {
             for (TWODCM subsketch: sketch.sketches) {
                 ram+= subsketch.memory();

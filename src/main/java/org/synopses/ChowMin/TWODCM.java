@@ -158,8 +158,8 @@ public class TWODCM {
         return mix(attrValue, seed, width);
     }
 
-    public int memory() {
-        return depth  * widthS * widthT * 32;
+    public long memory() {
+        return depth  * widthS * widthT * 32L;
     }
 
 

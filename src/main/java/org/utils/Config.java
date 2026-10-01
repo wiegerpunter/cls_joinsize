@@ -38,6 +38,8 @@ public class Config {
     public int depth;
     public String binPath;
     public String outputFolder;
+    public boolean pkFkOptimization;
+    public int uqRatio;
 
     public void setClusters(int a_i) {
         clusters = new int[numClusters][];

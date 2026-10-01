@@ -33,15 +33,12 @@ public class JoinDataset {
         for (Query q: queries) {
             System.out.println("Query " + q.query_name + " has answer: " + q.query_result);
         }
-        this.getTableNames();
+        this.getTableNames(config.withDeletes);
      }
 
     private void getExactAnswers() throws SQLException {
         // execute query on duckdb
         for (Query q: queries) {
-            if (q.getName().equals("q07.sql")) {
-                System.out.println("debug exact");
-            }
             try (Statement stmt = con.createStatement();
                  ResultSet rs = stmt.executeQuery(q.query_text)) {
 
@@ -121,7 +118,7 @@ public class JoinDataset {
         }
     }
 
-    private void getTableNames() throws SQLException {
+    private void getTableNames(boolean withDeletes) throws SQLException {
         var rs = con.createStatement()
                 .executeQuery("SHOW TABLES");
 
@@ -144,7 +141,11 @@ public class JoinDataset {
                 stmt.setString(1, tableNames[i]);
                 try (ResultSet res = stmt.executeQuery()) {
                     if (res.next()) {
-                        numColumnsPerTable.put(tableNames[i], res.getInt(1) - 2);//ignore residu indication and sign
+                        if (withDeletes) {
+                            numColumnsPerTable.put(tableNames[i], res.getInt(1) - 2);//ignore residu indication and sign
+                        } else {
+                            numColumnsPerTable.put(tableNames[i], res.getInt(1));//ignore residu indication and sign
+                        }
                     }
                 }
             }
@@ -170,13 +171,19 @@ public class JoinDataset {
                     );
                 }
             }
-            String NQuery = "SELECT COUNT(*) FROM " + tableNames[i] + " WHERE stream_part = 'R'";
+            String NQuery;
+            if (withDeletes) {
+                // Only query residu
+                NQuery = "SELECT COUNT(*) FROM " + tableNames[i] + " WHERE stream_part = 'R'";
+            } else {
+                NQuery = "SELECT COUNT(*) FROM " + tableNames[i];
+            }
             try (PreparedStatement stmt = con.prepareStatement(NQuery)) {
-                try (ResultSet res = stmt.executeQuery()) {
-                    if (res.next()) {
-                        tableSizes.put(tableNames[i], res.getInt(1));
-                    }
+            try (ResultSet res = stmt.executeQuery()) {
+                if (res.next()) {
+                    tableSizes.put(tableNames[i], res.getInt(1));
                 }
+            }
             }
         }
     }

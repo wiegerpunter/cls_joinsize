@@ -558,24 +558,7 @@ public class ChowMinAllPairs extends AbstractSynopsis {
             sum += product_p;
         }
 
-//            int pos = bucketPerAttribute.size() - 1;
-//            while (pos >= 0) {
-//                indices[pos]++;
-//                if (indices[pos] < 1) {
-//                    break;
-//                }
-//                indices[pos] = 0;
-//                pos--;
-//            }
-//
-//            if (pos < 0) {
-//                break; // all combinations exhausted
-//            }
-//        }
         if (pkHasPred) { // pass on ratio of PK table.
-//            if (!columns[0].equals("Id") && !columns[0].equals("id")) {
-//                throw new RuntimeException("Columns[0] is " + columns[0]);
-//            }
             pkMarginal = sketches[sketch_idx_first(0)].marginalOneRep(j, 0, k[0]);
             double[] res = new double[2];
             res[0] = Math.max(1.0, pkMarginal);

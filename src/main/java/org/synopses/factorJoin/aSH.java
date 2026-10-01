@@ -28,8 +28,8 @@ public class aSH {
 
     final int maxSize; // The maximum size of the sketch.
     int sketchSize; // The size of the sketch.// The factor by which the buffer is smaller than the sketch.
-    Random rn;
-    Random rn1;
+    final Random rn;
+    final Random rn1;
     boolean useBufferInQuery;
 
     public int numRemovals = 0;
@@ -45,7 +45,7 @@ public class aSH {
     private int numJoinKeys;
     public final HashMap<Integer, RunJoinExperiment.Buckets> joinKeyBinMap = new HashMap<>();
 
-    class IntArrayKey {
+    static class IntArrayKey {
         private final int[] data;
         private final HashMap<Integer, Integer> jkBins;
 
@@ -417,7 +417,7 @@ public class aSH {
         };
     }
 
-    public int getMemoryUsage() {
+    public long getMemoryUsage() {
         //double v = 1 / (1 - bufferFactor);
         return Formulas.ramASHWithBins(size, numAttrs, numJoinKeys);
 //        return (long) maxSize * 32 * (numAttrs + 5); // size * (size of record + size of Double array + Tis array)
@@ -480,6 +480,10 @@ public class aSH {
     }
 
     private int getBin(int value, RunJoinExperiment.Buckets b) {
+        return getBinHelper(value, b);
+    }
+
+    static int getBinHelper(int value, RunJoinExperiment.Buckets b) {
         int bin = (int) ((value - b.min) / b.binSize);
 
         if (bin < 0) {

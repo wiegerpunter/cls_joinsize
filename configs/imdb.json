@@ -1,7 +1,9 @@
 {
-  "queryPath": "/home/wieger/Downloads/imdb_csv/queries/cardinality_queries_eq_only",
+  "queryPath": "/home/wieger/PycharmProjects/plotsChowMin/queries",
   "duckdbPath": "/home/wieger/PycharmProjects/plotsChowMin/imdb.duckdb",
+  "binPath": "/home/wieger/PycharmProjects/plotsChowMin/equiWidth/columnDomains.csv",
   "hhValuesMapPath": "",
+  "cardinalityMapPath": "/home/wieger/PycharmProjects/plotsChowMin/cardinalities/cardinality.csv",
   "N": 10000000,
   "numQueries": 10000,
   "ramVals":[100000],
@@ -9,13 +11,17 @@
   "modelType": "ClusteredModel",
   "dataDistribution": "Corr",
   "statsData": false,
+  "withDeletes": false,
   "maxNumPredicates": [3],
   "printData": false,
   "numClusters": 2,
   "num_rows": [3],
-  "joinWidth": 100,
+  "joinWidth": 10,
   "maxLocalWidth": 64,
   "ingest_buffers": [0.01,0.1,0.25],
   "datasetType": "joinSize",
-  "sepHHs": false
+  "outputFolder": "/home/wieger/sandboxChowMin/resultsJoinSize/imdb/",
+  "sepHHs": false,
+  "pkFkOptimization": false,
+  "uqRatio": 100000
 }
