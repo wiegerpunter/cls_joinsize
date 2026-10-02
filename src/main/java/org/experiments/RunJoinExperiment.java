@@ -492,10 +492,10 @@ public class RunJoinExperiment {
             double sampleRate = (double) samples / N;
 
             int bufferSize = (int) (sampleRate * uqratio);
-            if (bufferSize > samples) {
+            if (bufferSize >= samples) {
                 bufferSize = (int) (samples * 0.01);
             }
-//            int bufferSize = (int) (0.5*samples);
+//            int bufferSize = (int) (0.05*samples);
             /*
              * For a fully sampled table, bufferSize=1 but it represents
              * no additional reserved sampling memory.
