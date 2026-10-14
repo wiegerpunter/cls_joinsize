@@ -1,6 +1,6 @@
 {
   "queryPath": "/home/wieger/Documents/Research/DataGeneration/tpcH/queries_stream",
-  "duckdbPath": "/home/wieger/Documents/Research/DataGeneration/tpcH/data/tpch_stream_sf0.1_skew2.0.duckdb",
+  "duckdbPath": "/home/wieger/Documents/Research/DataGeneration/tpcH/data/tpch_stream_sf0.1_skew0.0.duckdb",
   "binPath": "/home/wieger/Documents/Research/DataGeneration/tpcH/data/equiWidth01/columnDomains.csv",
   "hhValuesMapPath": "",
   "cardinalityMapPath": "/home/wieger/Documents/Research/DataGeneration/tpcH/data/cardinalities/cardinality.csv",
@@ -23,5 +23,6 @@
   "sepHHs": false,
   "outputFolder": "/home/wieger/sandboxChowMin/resultsJoinSize/tpch",
   "seed": 5,
-  "pkFkOptimization": true
+  "pkFkOptimization": true,
+  "uqRatio":1000
 }

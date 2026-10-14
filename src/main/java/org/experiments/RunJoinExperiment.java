@@ -490,6 +490,10 @@ public class RunJoinExperiment {
                     sampleSizes.getOrDefault(table, 0);
             int N = tableSizes.get(table);
             double sampleRate = (double) samples / N;
+            if (fullySampled.contains(table)) {
+                parMap.put(table, new int[]{samples, 1});
+                continue;
+            }
 
             int bufferSize = (int) (sampleRate * uqratio);
             if (bufferSize >= samples) {
