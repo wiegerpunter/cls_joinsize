@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM customer as c, supplier as s, nation as n WHERE c.stream_part = 'R' AND s.stream_part = 'R' AND n.stream_part = 'R' AND  c.c_nationkey = s.s_nationkey AND s.s_nationkey = n.n_nationkey;

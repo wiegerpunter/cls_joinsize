@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM orders as o, lineitem as l, supplier as s WHERE o.stream_part = 'R' AND l.stream_part = 'R' AND s.stream_part = 'R' AND  l.l_orderkey = o.o_orderkey AND l.l_suppkey = s.s_suppkey;

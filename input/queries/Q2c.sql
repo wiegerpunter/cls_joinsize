@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM partsupp as ps, supplier as s, nation as n, region as r WHERE ps.stream_part = 'R' AND s.stream_part = 'R' AND n.stream_part = 'R' AND r.stream_part = 'R' AND  s.s_suppkey = ps.ps_suppkey AND s.s_nationkey = n.n_nationkey AND n.n_regionkey = r.r_regionkey AND r.r_name = 'EUROPE'

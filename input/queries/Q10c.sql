@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM customer as c, orders as o, lineitem as l WHERE c.stream_part = 'R' AND o.stream_part = 'R' AND l.stream_part = 'R' AND  c.c_custkey = o.o_custkey AND l.l_orderkey = o.o_orderkey AND l.l_returnflag ='R';

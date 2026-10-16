@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM part as p, partsupp as ps, supplier as s WHERE p.stream_part = 'R' AND ps.stream_part = 'R' AND s.stream_part = 'R' AND  p.p_partkey = ps.ps_partkey AND s.s_suppkey = ps.ps_suppkey AND p.p_size=15

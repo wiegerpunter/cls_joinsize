@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM customer as c, orders as o, nation as n WHERE c.stream_part = 'R' AND o.stream_part = 'R' AND n.stream_part = 'R' AND  c.c_custkey = o.o_custkey AND c.c_nationkey = n.n_nationkey;
